@@ -294,8 +294,7 @@ function signIn(){
     scope:SCOPES,
     prompt:'select_account'
   });
-  window.open('https://accounts.google.com/o/oauth2/v2/auth?'+p,'_blank','width=550,height=650');
-  setTimeout(()=>{document.getElementById('token-modal').style.display='flex';},1500);
+  window.location.href='https://accounts.google.com/o/oauth2/v2/auth?'+p;
 }
 
 function closeTokenModal(){document.getElementById('token-modal').style.display='none';}
@@ -537,6 +536,33 @@ function setDefaultPeriod(){
 }
 function esc(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 renderVehicules();setDefaultPeriod();
+
+// Détection automatique du token dans l'URL au chargement
+(function(){
+  const hash = window.location.hash || window.location.search;
+  if(hash && hash.includes('access_token=')){
+    let token = null;
+    try{
+      const part = hash.startsWith('#') ? hash.slice(1) : hash.slice(1);
+      token = new URLSearchParams(part).get('access_token');
+    }catch(e){}
+    if(token){
+      accessToken = token;
+      // Nettoyer l'URL sans recharger la page
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Récupérer les infos utilisateur
+      fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}})
+        .then(r=>r.json()).then(u=>{
+          document.getElementById('user-pill').textContent='✓ '+(u.name||u.email);
+          document.getElementById('auth-section').style.display='none';
+          document.getElementById('user-section').style.display='block';
+          document.getElementById('period-card').style.display='block';
+          document.getElementById('btn-manual-only').style.display='none';
+          document.getElementById('token-modal').style.display='none';
+        });
+    }
+  }
+})();
 </script>
 </body>
 </html>
