@@ -310,10 +310,15 @@ const CAL_ENTITE={
 
 function getEntite(calendrier, organisateur){
   if(!calendrier&&!organisateur) return "CSL42";
-  for(const [k,v] of Object.entries(CAL_ENTITE)){
-    if((calendrier||'').includes(k)||(organisateur||'').includes(k)) return v;
+  const cal=(calendrier||'').toUpperCase();
+  const org=(organisateur||'').toUpperCase();
+  // Tester PJGEIPF26 AVANT PJGEI pour éviter le faux match
+  if(cal.includes('PJGEIPF26')||org.includes('PJGEIPF26')) return 'PJGEIPF26';
+  if(cal==='PJGEI'||org==='PJGEI'||cal.startsWith('PJGEI')||org.startsWith('PJGEI')) return 'PJGEI';
+  const CSL_KEYS=["AGENDA D'INTERVENTIONS LE","AGENDA DES INTERVENTIONS DENIS","GENESIENNE","CSL 42","CSL42","DENIS"];
+  for(const k of CSL_KEYS){
+    if(cal.includes(k)||org.includes(k)) return 'CSL42';
   }
-  if((organisateur||'').includes('PJGEI')) return 'PJGEI';
   return "CSL42";
 }
 
