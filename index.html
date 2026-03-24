@@ -138,8 +138,8 @@ td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:middle}
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
-          <th style="width:12%">Date</th><th style="width:30%">Titre</th>
-          <th style="width:20%">Organisateur</th><th style="width:20%">Client</th><th style="width:18%">Lieu</th>
+          <th style="width:11%">Date</th><th style="width:28%">Titre</th>
+          <th style="width:19%">Organisateur</th><th style="width:19%">Client</th><th style="width:17%">Lieu</th><th style="width:6%"></th>
         </tr></thead>
         <tbody id="agenda-tbody"></tbody>
       </table></div>
@@ -363,8 +363,10 @@ async function loadAgenda(){
     }
     if(!allItems.length){status.innerHTML='<div class="status-pill error">Aucun événement trouvé.</div>';return;}
     const seen=new Set();
+    const FILTRE_AUTO=/^(semaine\s+\d+|week\s+\d+)/i;
     eventsFromAgenda=allItems.filter(ev=>{if(seen.has(ev.id))return false;seen.add(ev.id);return true;})
       .filter(ev=>ev.status!=='cancelled')
+      .filter(ev=>!FILTRE_AUTO.test(ev.summary||''))
       .map(ev=>({
         titre:ev.summary||'',
         date:(ev.start&&(ev.start.date||ev.start.dateTime)||'').slice(0,10),
@@ -383,10 +385,11 @@ function renderAgendaPreview(){
   document.getElementById('prev-count').textContent=eventsFromAgenda.length;
   document.getElementById('prev-lieux').textContent=[...new Set(ev.map(e=>e.lieu).filter(Boolean))].length;
   document.getElementById('prev-orgs').textContent=[...new Set(ev.map(e=>e.organisateur).filter(Boolean))].length;
-  document.getElementById('agenda-tbody').innerHTML=eventsFromAgenda.map(ev=>`<tr>
+  document.getElementById('agenda-tbody').innerHTML=eventsFromAgenda.map((ev,i)=>`<tr id="agenda-row-${i}">
     <td style="font-size:12px">${ev.date||'—'}</td><td style="font-size:12px">${ev.titre||'—'}</td>
     <td style="font-size:12px">${ev.organisateur||'—'}</td><td style="font-size:12px">${ev.client||'—'}</td>
     <td style="font-size:12px">${ev.lieu?`<span class="badge badge-org">${ev.lieu}</span>`:'—'}</td>
+    <td style="text-align:center"><button class="btn-danger" onclick="eventsFromAgenda.splice(${i},1);renderAgendaPreview()" title="Supprimer">&#x2715;</button></td>
   </tr>`).join('');
   document.getElementById('agenda-preview').style.display='block';
 }
