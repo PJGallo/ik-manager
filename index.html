@@ -278,21 +278,21 @@ const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
 
 // Référentiel des adresses connues
 const ADRESSES_CONNUES={
-  "ELS ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "BUREAUX ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "Plusécur":"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
-  "PLUSECUR":"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
-  "GROUPE DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "PROTECH":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "SOMAIN":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "CHAMBON":"All. André Marie Ampère, 42500 Le Chambon-Feugerolles",
-  "MPE Europe":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
-  "MPE":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
-  "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond",
-  "Saint-Etienne 1997 Rue Jean Rostand":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
-  "MA BOST":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
-  "INTERVENTION MA BOST":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
-  "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles"
+  "ELS ANDREZIEUX":     {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", lat:45.5219, lon:4.2697},
+  "BUREAUX ANDREZIEUX": {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", lat:45.5219, lon:4.2697},
+  "Plusécur":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", lat:45.2927, lon:4.1731},
+  "PLUSECUR":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", lat:45.2927, lon:4.1731},
+  "GROUPE DENIS":       {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
+  "PROTECH":            {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
+  "SOMAIN":             {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
+  "Réfectoire DSO, DSM, SERTAC, DENIS": {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
+  "CHAMBON":            {adresse:"Allée André Marie Ampère, 42500 Le Chambon-Feugerolles", lat:45.3975, lon:4.3201},
+  "MPE Europe":         {adresse:"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire", lat:45.2918, lon:4.1756},
+  "MPE":                {adresse:"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire", lat:45.2918, lon:4.1756},
+  "SICAF":              {adresse:"5 Rue Julien Chomienne, 42400 Saint-Chamond", lat:45.4766, lon:4.5152},
+  "MA BOST":            {adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697},
+  "INTERVENTION MA BOST":{adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697},
+  "Saint-Etienne 1997 Rue Jean Rostand":{adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697}
 };
 
 // Correspondance calendrier → entité IK
@@ -320,14 +320,12 @@ function getEntite(calendrier, organisateur){
 function getAdresse(lieu){
   if(!lieu) return '';
   const l=lieu.trim();
-  // Chercher correspondance exacte ou partielle dans le référentiel
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase()===k.toLowerCase()) return v;
+    if(l.toLowerCase()===k.toLowerCase()) return v.adresse;
   }
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v;
+    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v.adresse;
   }
-  // Si le lieu contient déjà un code postal, c'est une adresse — la retourner telle quelle
   if(/\d{5}/.test(l)) return l;
   return '';
 }
@@ -528,36 +526,30 @@ function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});ren
 function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
 
 async function geocode(addr){
-  const q=encodeURIComponent(addr);
-  // Tentative 1 : API Adresse du gouvernement français (la plus fiable pour la France)
+  // Chercher dans le référentiel avec coordonnées GPS
+  const addrLow=addr.toLowerCase().trim();
+  for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
+    if(addrLow.includes(k.toLowerCase())||k.toLowerCase().includes(addrLow)||
+       (v.adresse&&addrLow.includes(v.adresse.toLowerCase().substring(0,15)))){
+      return {lat:v.lat, lon:v.lon};
+    }
+  }
+  // API Adresse gouv.fr
   try{
-    const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+q+'&limit=1');
+    const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(addr)+'&limit=1');
     const d=await r.json();
     if(d.features&&d.features.length){
       const[lon,lat]=d.features[0].geometry.coordinates;
       return {lat,lon};
     }
   }catch(e){}
-  // Tentative 2 : Nominatim avec adresse complète
+  // Nominatim fallback
   try{
-    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr','User-Agent':'IK-Manager/1.0'}});
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
     const d=await r.json();
     if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
   }catch(e){}
-  // Tentative 3 : juste le code postal + ville
-  const cpVille=addr.match(/(\d{5}\s+[\w\s\-]+)/);
-  if(cpVille){
-    try{
-      const q2=encodeURIComponent(cpVille[1].trim());
-      const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+q2+'&limit=1');
-      const d=await r.json();
-      if(d.features&&d.features.length){
-        const[lon,lat]=d.features[0].geometry.coordinates;
-        return {lat,lon};
-      }
-    }catch(e){}
-  }
-  // Tentative 4 : ville seule extraite du code postal
+  // CP seul
   const cp=addr.match(/\d{5}/);
   if(cp){
     try{
@@ -575,8 +567,7 @@ async function calcDistance(i){
   if(!lieux[i].adresse.trim()) return;
   lieux[i].distStatus='loading';renderLieux();
   try{
-    const adresse=lieux[i].adresse.trim();
-    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(adresse)]);
+    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(lieux[i].adresse)]);
     const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
     const d=await r.json();
     if(d.code!=='Ok') throw new Error();
