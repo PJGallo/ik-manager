@@ -288,7 +288,8 @@ const ADRESSES_CONNUES={
   "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
   "CHAMBON":"All. André Marie Ampère, 42500 Le Chambon-Feugerolles",
   "MPE Europe":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire",
-  "MPE":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire"
+  "MPE":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire",
+  "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond"
 };
 
 // Correspondance calendrier → entité IK
@@ -518,16 +519,28 @@ async function geocode(addr){
   const d=await r.json();if(!d.length)throw new Error();return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
 }
 async function calcDistance(i){
-  if(!lieux[i].adresse.trim()){alert("Saisissez d'abord une adresse.");return;}
+  if(!lieux[i].adresse.trim()){
+    if(event) alert("Saisissez d'abord une adresse.");
+    return;
+  }
   lieux[i].distStatus='loading';renderLieux();
   try{
-    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(lieux[i].adresse)]);
-    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);
+    // Nettoyer l'adresse : garder seulement CP + ville si trop longue
+    let adresse = lieux[i].adresse.trim();
+    // Extraire CP + ville pour un meilleur géocodage
+    const cpVille = adresse.match(/\d{5}\s+[\w\s-]+(?:France)?/i);
+    const adresseGeo = cpVille ? adresse : adresse.split(',').slice(-2).join(',').trim() || adresse;
+    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(adresseGeo)]);
+    const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
     const d=await r.json();if(d.code!=='Ok')throw new Error();
     lieux[i].kmAR=Math.round(d.routes[0].distance/1000*2);lieux[i].distStatus='ok';
   }catch(e){lieux[i].distStatus='error';}renderLieux();
 }
-async function calcAllDistances(){for(let i=0;i<lieux.length;i++)if(lieux[i].adresse.trim()&&!lieux[i].validated)await calcDistance(i);}
+async function calcAllDistances(){
+  for(let i=0;i<lieux.length;i++){
+    if(lieux[i].adresse.trim()&&!lieux[i].validated) await calcDistance(i);
+  }
+}
 
 function renderVehicules(){
   document.getElementById('veh-cards').innerHTML=[0,1,2].map(i=>`<div class="veh-card">
