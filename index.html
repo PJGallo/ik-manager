@@ -280,16 +280,16 @@ const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
 const ADRESSES_CONNUES={
   "ELS ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
   "BUREAUX ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "Plusécur":"ZA, La Croix Saint-Martin, 43120 Monistol-sur-Loire",
-  "PLUSECUR":"ZA, La Croix Saint-Martin, 43120 Monistol-sur-Loire",
+  "Plusécur":"ZA La Croix Saint-Martin, 43120 Monistiol-sur-Loire",
+  "PLUSECUR":"ZA La Croix Saint-Martin, 43120 Monistiol-sur-Loire",
   "GROUPE DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
   "PROTECH":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
   "SOMAIN":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "CHAMBON":"All. André Marie Ampère, 42500 Le Chambon-Feugerolles",
-  "MPE Europe":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire",
-  "MPE":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire",
-  "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond"
+  "CHAMBON":"Allée André Marie Ampère, 42500 Le Chambon-Feugerolles",
+  "MPE Europe":"3a Boulevard François Mitterrand, 43120 Monistiol-sur-Loire",
+  "MPE":"3a Boulevard François Mitterrand, 43120 Monistiol-sur-Loire",
+  "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond",
+  "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles"
 };
 
 // Correspondance calendrier → entité IK
@@ -314,12 +314,16 @@ function getEntite(calendrier, organisateur){
 
 function getAdresse(lieu){
   if(!lieu) return '';
-  // Si le lieu contient déjà une vraie adresse (numéro + rue)
-  if(/\d+.*rue|\d+.*avenue|\d+.*boulevard|\d+.*chemin|\d+.*allée|ZAC|ZA,/i.test(lieu)) return lieu;
-  // Chercher dans le référentiel
+  const l=lieu.trim();
+  // Chercher correspondance exacte ou partielle dans le référentiel
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(lieu.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(lieu.toLowerCase())) return v;
+    if(l.toLowerCase()===k.toLowerCase()) return v;
   }
+  for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
+    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v;
+  }
+  // Si le lieu contient déjà un code postal, c'est une adresse — la retourner telle quelle
+  if(/\d{5}/.test(l)) return l;
   return '';
 }
 const BAREME={
@@ -515,26 +519,34 @@ function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});ren
 function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
 
 async function geocode(addr){
-  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`,{headers:{'Accept-Language':'fr'}});
-  const d=await r.json();if(!d.length)throw new Error();return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  // Essai 1 : adresse complète
+  let r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
+  let d=await r.json();
+  if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  // Essai 2 : extraire CP + ville uniquement
+  const cpVille=addr.match(/(\d{5}\s+[\w\s-]+)/);
+  if(cpVille){
+    r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(cpVille[1])+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
+    d=await r.json();
+    if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  }
+  throw new Error('Adresse introuvable: '+addr);
 }
 async function calcDistance(i){
-  if(!lieux[i].adresse.trim()){
-    if(event) alert("Saisissez d'abord une adresse.");
-    return;
-  }
+  if(!lieux[i].adresse.trim()) return;
   lieux[i].distStatus='loading';renderLieux();
   try{
-    // Nettoyer l'adresse : garder seulement CP + ville si trop longue
-    let adresse = lieux[i].adresse.trim();
-    // Extraire CP + ville pour un meilleur géocodage
-    const cpVille = adresse.match(/\d{5}\s+[\w\s-]+(?:France)?/i);
-    const adresseGeo = cpVille ? adresse : adresse.split(',').slice(-2).join(',').trim() || adresse;
-    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(adresseGeo)]);
+    const adresse=lieux[i].adresse.trim();
+    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(adresse)]);
     const r=await fetch('https://router.project-osrm.org/route/v1/driving/'+a.lon+','+a.lat+';'+b.lon+','+b.lat+'?overview=false');
-    const d=await r.json();if(d.code!=='Ok')throw new Error();
-    lieux[i].kmAR=Math.round(d.routes[0].distance/1000*2);lieux[i].distStatus='ok';
-  }catch(e){lieux[i].distStatus='error';}renderLieux();
+    const d=await r.json();
+    if(d.code!=='Ok') throw new Error();
+    lieux[i].kmAR=Math.round(d.routes[0].distance/1000*2);
+    lieux[i].distStatus='ok';
+  }catch(e){
+    lieux[i].distStatus='error';
+  }
+  renderLieux();
 }
 async function calcAllDistances(){
   for(let i=0;i<lieux.length;i++){
