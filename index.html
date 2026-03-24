@@ -348,19 +348,32 @@ async function loadAgenda(){
   if(!from||!to){status.innerHTML='<div class="status-pill error">Définissez une période.</div>';return;}
   try{
     const tMin=new Date(from).toISOString(),tMax=new Date(to+'T23:59:59').toISOString();
-    const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=250`,
-      {headers:{Authorization:'Bearer '+accessToken}});
-    if(r.status===401){status.innerHTML='<div class="status-pill error">Session expirée — reconnectez-vous.</div>';signOut();return;}
-    const d=await r.json();
-    if(!d.items?.length){status.innerHTML='<div class="status-pill error">Aucun événement trouvé.</div>';return;}
-    eventsFromAgenda=d.items.filter(ev=>ev.status!=='cancelled').map(ev=>({
-      titre:ev.summary||'',
-      date:(ev.start?.date||ev.start?.dateTime||'').slice(0,10),
-      lieu:ev.location?ev.location.split(',')[0].trim():'',
-      organisateur:ev.organizer?.displayName||ev.organizer?.email||'',
-      client:ev.summary||''
-    }));
-    status.innerHTML=`<div class="status-pill success">&#10003; ${eventsFromAgenda.length} événements chargés</div>`;
+    const calListR=await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList',{headers:{Authorization:'Bearer '+accessToken}});
+    if(calListR.status===401){status.innerHTML='<div class="status-pill error">Session expirée — reconnectez-vous.</div>';signOut();return;}
+    const calList=await calListR.json();
+    const calendars=(calList.items||[]);
+    const allItems=[];
+    for(const cal of calendars){
+      try{
+        const r=await fetch('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(cal.id)+'/events?timeMin='+encodeURIComponent(tMin)+'&timeMax='+encodeURIComponent(tMax)+'&singleEvents=true&orderBy=startTime&maxResults=250',
+          {headers:{Authorization:'Bearer '+accessToken}});
+        const d=await r.json();
+        if(d.items) allItems.push(...d.items.map(ev=>Object.assign({},ev,{_calName:cal.summary})));
+      }catch(e){}
+    }
+    if(!allItems.length){status.innerHTML='<div class="status-pill error">Aucun événement trouvé.</div>';return;}
+    const seen=new Set();
+    eventsFromAgenda=allItems.filter(ev=>{if(seen.has(ev.id))return false;seen.add(ev.id);return true;})
+      .filter(ev=>ev.status!=='cancelled')
+      .map(ev=>({
+        titre:ev.summary||'',
+        date:(ev.start&&(ev.start.date||ev.start.dateTime)||'').slice(0,10),
+        lieu:ev.location?ev.location.split(',')[0].trim():'',
+        organisateur:ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||ev._calName||'',
+        client:ev.summary||'',
+        calendrier:ev._calName||''
+      })).sort((a,b)=>a.date.localeCompare(b.date));
+    status.innerHTML='<div class="status-pill success">&#10003; '+eventsFromAgenda.length+' événements chargés depuis '+calendars.length+' calendriers</div>';
     renderAgendaPreview();
   }catch(e){status.innerHTML=`<div class="status-pill error">Erreur : ${e.message}</div>`;}
 }
@@ -538,7 +551,7 @@ function esc(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 renderVehicules();setDefaultPeriod();
 
 // Détection automatique du token dans l'URL au chargement
-document.addEventListener('DOMContentLoaded', function(){
+(function(){
   const hash = window.location.hash || window.location.search;
   if(hash && hash.includes('access_token=')){
     let token = null;
@@ -562,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     }
   }
-});
+})();
 </script>
 </body>
 </html>
