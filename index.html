@@ -462,12 +462,25 @@ function renderManual(){
 function buildLieuxFromAgenda(){
   const ev=allEvents();
   const existants=new Set(lieux.map(l=>l.nom.toLowerCase()));
-  [...new Set(ev.map(e=>e.lieu).filter(Boolean))].forEach(nom=>{
-    if(!existants.has(nom.toLowerCase())){
-      const match=ev.find(e=>e.lieu===nom&&e.organisateur);
-      const adresseAuto=getAdresse(nom);
-      lieux.push({nom,adresse:adresseAuto,entreprise:match?match.organisateur:"",kmAR:0,distStatus:adresseAuto?"":"",validated:false,autoFilled:true});
-      existants.add(nom.toLowerCase());
+  [...new Set(ev.map(e=>e.lieu).filter(Boolean))].forEach(lieuBrut=>{
+    if(!existants.has(lieuBrut.toLowerCase())){
+      const match=ev.find(e=>e.lieu===lieuBrut&&e.organisateur);
+      // Si le lieu contient déjà une adresse complète, on l'utilise comme adresse et on garde le nom court
+      const estAdresse=/\d+.*(rue|avenue|boulevard|chemin|allée|impasse|bd|av\.|route|voie)|ZAC|ZA,/i.test(lieuBrut);
+      let nom=lieuBrut, adresseAuto='';
+      if(estAdresse){
+        // C'est une adresse brute — chercher si un nom connu correspond
+        const nomConnu=Object.keys(ADRESSES_CONNUES).find(k=>ADRESSES_CONNUES[k]&&lieuBrut.toLowerCase().includes(k.toLowerCase().split(' ')[0]));
+        nom = nomConnu || lieuBrut.split(/[,\n]/)[0].trim().substring(0,30);
+        adresseAuto = lieuBrut;
+      } else {
+        // C'est un nom court — chercher l'adresse dans le référentiel
+        adresseAuto = getAdresse(lieuBrut);
+      }
+      if(!existants.has(nom.toLowerCase())){
+        lieux.push({nom,adresse:adresseAuto,entreprise:match?match.organisateur:"",kmAR:0,distStatus:"",validated:false,autoFilled:true});
+        existants.add(nom.toLowerCase());
+      }
     }
   });
   if(!lieux.length)lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});
