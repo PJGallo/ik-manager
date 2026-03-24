@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Gestionnaire IK</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;color:#1a1a1a;background:#f5f5f0;padding:1.5rem}
+.app{max-width:1000px;margin:0 auto}
+h1{font-size:20px;font-weight:500;margin-bottom:1.5rem}
+.steps{display:flex;margin-bottom:1.5rem;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+.step{flex:1;padding:10px 6px;font-size:11px;text-align:center;color:#888;cursor:pointer;border-right:1px solid #ddd;transition:background .15s;line-height:1.4}
+.step:last-child{border-right:none}
+.step.active{background:#e8f0fe;color:#1a56db;font-weight:500}
+.step.done{background:#e8f5e9;color:#2e7d32}
+.screen{display:none}.screen.active{display:block}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:15px;font-weight:500;margin-bottom:.75rem}
+.card-sub{font-size:13px;color:#666;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+th{text-align:left;padding:7px 8px;font-size:11px;color:#888;font-weight:400;border-bottom:1px solid #eee}
+td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:middle}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#1a1a1a;cursor:pointer;transition:background .12s}
+.btn:hover{background:#f5f5f5}
+.btn-primary{background:#1a56db;color:#fff;border-color:transparent}
+.btn-primary:hover{background:#1447c0}
+.btn-google{background:#fff;color:#1a1a1a;border:1px solid #ddd;display:inline-flex;align-items:center;gap:10px;padding:10px 20px;font-size:14px;border-radius:8px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.btn-google:hover{background:#f8f8f8}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-ghost{background:transparent;border:none;color:#888;font-size:12px;cursor:pointer;padding:4px 8px;text-decoration:underline}
+.btn-ghost:hover{color:#1a1a1a}
+.btn-danger{color:#c62828;border:none;background:transparent;padding:4px 8px;font-size:13px;cursor:pointer}
+.btn-danger:hover{background:#fdecea;border-radius:6px}
+.actions{display:flex;gap:8px;justify-content:flex-end;align-items:center;margin-top:1rem}
+.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1rem}
+.metric{background:#f5f5f0;border-radius:8px;padding:.9rem}
+.metric .lbl{font-size:11px;color:#888;margin-bottom:4px}
+.metric .val{font-size:20px;font-weight:500}
+.veh-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.veh-card{border:1px solid #e0e0e0;border-radius:12px;padding:1rem}
+.veh-card .field{margin-bottom:10px}
+.veh-card label{display:block;font-size:11px;color:#888;margin-bottom:4px}
+.veh-card input,.veh-card select{width:100%;padding:6px 8px;font-size:13px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#1a1a1a}
+.period-row{display:flex;gap:10px;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+.period-row label{font-size:13px;color:#666;white-space:nowrap}
+.period-row input,.veh-sel{padding:6px 10px;font-size:13px;border:1px solid #e0e0e0;border-radius:6px;background:#fff;color:#1a1a1a}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;margin-left:5px}
+.badge-org{background:#e8f0fe;color:#1a56db}
+.badge-client{background:#e8f5e9;color:#2e7d32}
+.empty{text-align:center;padding:2rem;color:#aaa;font-size:13px}
+.tbl-wrap{overflow-x:auto}
+.cell-input{width:100%;background:transparent;border:none;font-size:13px;outline:none;padding:2px 0;color:#1a1a1a}
+.cell-input:focus{border-bottom:1px solid #1a56db}
+.cell-input:disabled{color:#2e7d32;pointer-events:none}
+.lieu-row.validated td{background:#f1f8f1}
+.auto-filled{color:#1a56db !important;font-style:italic}
+.btn-validate{padding:4px 10px;font-size:11px;border:1px solid #81c784;border-radius:6px;background:#fff;color:#2e7d32;cursor:pointer;white-space:nowrap}
+.btn-validate:hover{background:#e8f5e9}
+.btn-edit{padding:4px 10px;font-size:11px;border:1px solid #ccc;border-radius:6px;background:#fff;color:#555;cursor:pointer;white-space:nowrap}
+.btn-edit:hover{background:#f5f5f5}
+.btn-calc{padding:4px 8px;font-size:11px;border:1px solid #a8c0f8;border-radius:6px;background:#fff;color:#1a56db;cursor:pointer;white-space:nowrap}
+.btn-calc:hover{background:#e8f0fe}
+.calc-all-btn{font-size:12px;color:#1a56db;background:#fff;border:1px solid #a8c0f8;border-radius:6px;padding:5px 12px;cursor:pointer}
+.calc-all-btn:hover{background:#e8f0fe}
+.validate-all-btn{font-size:12px;color:#2e7d32;background:#fff;border:1px solid #81c784;border-radius:6px;padding:5px 12px;cursor:pointer;margin-left:6px}
+.validate-all-btn:hover{background:#e8f5e9}
+.status-ok{font-size:11px;color:#2e7d32;font-weight:500}
+.status-err{font-size:11px;color:#c62828}
+.status-loading{font-size:12px;color:#888}
+.progress-bar{height:5px;background:#eee;border-radius:3px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:#43a047;border-radius:3px;transition:width .3s}
+.progress-label{font-size:11px;color:#888;margin-top:4px}
+.status-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:8px 14px;border-radius:8px;margin-top:8px}
+.status-pill.loading{background:#fff8e1;color:#f57f17}
+.status-pill.success{background:#e8f5e9;color:#2e7d32}
+.status-pill.error{background:#fdecea;color:#c62828}
+.divider{display:flex;align-items:center;gap:10px;margin:1rem 0;color:#bbb;font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:#eee}
+.auth-box{text-align:center;padding:2rem;border:1px dashed #ddd;border-radius:12px;background:#fafafa;margin-bottom:1rem}
+.auth-box p{font-size:13px;color:#666;margin-bottom:1.5rem;line-height:1.6}
+.user-pill{display:inline-flex;align-items:center;gap:8px;background:#e8f5e9;color:#2e7d32;padding:6px 14px;border-radius:20px;font-size:13px;margin-bottom:1rem}
+.modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal{background:#fff;border-radius:12px;padding:2rem;max-width:560px;width:90%}
+.modal h2{font-size:16px;font-weight:500;margin-bottom:1.25rem}
+.modal textarea{width:100%;padding:10px;font-size:12px;border:1px solid #ddd;border-radius:8px;margin-bottom:1rem;font-family:monospace;height:70px;resize:vertical}
+.step-line{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;font-size:13px;color:#333;line-height:1.5}
+.step-num{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;background:#1a56db;color:#fff;border-radius:50%;font-size:11px;font-weight:600;margin-top:1px;flex-shrink:0}
+.img-hint{width:100%;border:1px solid #eee;border-radius:8px;margin:10px 0;background:#f9f9f9;padding:10px;font-size:12px;color:#555;font-family:monospace;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>Gestionnaire d'indemnités kilométriques</h1>
+<div class="steps">
+  <div class="step active" id="stp1" onclick="goStep(1)">1 · Agenda</div>
+  <div class="step" id="stp2" onclick="goStep(2)">2 · Lieux</div>
+  <div class="step" id="stp3" onclick="goStep(3)">3 · Véhicules</div>
+  <div class="step" id="stp4" onclick="goStep(4)">4 · IK</div>
+</div>
+
+<!-- ÉTAPE 1 -->
+<div class="screen active" id="sc1">
+  <div id="auth-section" class="auth-box">
+    <p>Connectez-vous avec votre compte Google pour importer automatiquement vos interventions depuis Google Calendar.</p>
+    <button class="btn-google" onclick="signIn()">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Se connecter avec Google
+    </button>
+  </div>
+
+  <div id="user-section" style="display:none;margin-bottom:1rem">
+    <div class="user-pill" id="user-pill">&#10003; Connecté</div>
+    <button class="btn-ghost" onclick="signOut()" style="margin-left:8px">Se déconnecter</button>
+  </div>
+
+  <div class="card" id="period-card" style="display:none">
+    <div class="card-title">Période des interventions</div>
+    <div class="period-row">
+      <label>Du</label><input type="date" id="date-from"/>
+      <label>au</label><input type="date" id="date-to"/>
+      <button class="btn btn-primary btn-sm" onclick="loadAgenda()">Charger l'agenda</button>
+    </div>
+    <div id="agenda-status"></div>
+  </div>
+
+  <div id="agenda-preview" style="display:none">
+    <div class="metric-grid">
+      <div class="metric"><div class="lbl">Événements</div><div class="val" id="prev-count">—</div></div>
+      <div class="metric"><div class="lbl">Lieux uniques</div><div class="val" id="prev-lieux">—</div></div>
+      <div class="metric"><div class="lbl">Entreprises</div><div class="val" id="prev-orgs">—</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div class="card-title" style="margin:0">Interventions détectées</div>
+        <button class="btn-ghost" onclick="toggleManual()">+ Ajouter manuellement</button>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th style="width:12%">Date</th><th style="width:30%">Titre</th>
+          <th style="width:20%">Organisateur</th><th style="width:20%">Client</th><th style="width:18%">Lieu</th>
+        </tr></thead>
+        <tbody id="agenda-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div id="manual-section" style="display:none">
+    <div class="divider">interventions supplémentaires</div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+        <div class="card-title" style="margin:0">Saisie manuelle</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="addManualEvent()">+ Ajouter</button>
+          <button class="btn-ghost" onclick="toggleManual()">Masquer</button>
+        </div>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th style="width:12%">Date</th><th style="width:25%">Titre</th>
+          <th style="width:20%">Organisateur</th><th style="width:20%">Client</th>
+          <th style="width:16%">Lieu</th><th style="width:7%"></th>
+        </tr></thead>
+        <tbody id="manual-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn-ghost" onclick="toggleManual(true)" id="btn-manual-only">Saisir sans agenda</button>
+    <button class="btn btn-primary" onclick="buildLieuxFromAgenda();goStep(2)">Construire le référentiel &#8594;</button>
+  </div>
+</div>
+
+<!-- MODAL TOKEN -->
+<div id="token-modal" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>Finaliser la connexion Google</h2>
+    <div class="step-line">
+      <span class="step-num">1</span>
+      <span>La page <strong>Google OAuth Playground</strong> vient de s'ouvrir. Connectez-vous avec votre compte Google et autorisez l'accès.</span>
+    </div>
+    <div class="step-line">
+      <span class="step-num">2</span>
+      <span>Après autorisation, vous revenez sur OAuth Playground. Dans le champ <strong>"Authorization code"</strong>, vous verrez un code. Ignorez-le — regardez plutôt <strong>l'URL dans la barre d'adresse</strong> qui contient <code>access_token=</code>.</span>
+    </div>
+    <div class="step-line">
+      <span class="step-num">3</span>
+      <span>Copiez <strong>toute l'URL</strong> de la barre d'adresse et collez-la ci-dessous.</span>
+    </div>
+    <textarea id="token-input" placeholder="Collez ici l'URL complète depuis la barre d'adresse..."></textarea>
+    <div style="font-size:12px;color:#888;margin-bottom:1rem">L'URL doit ressembler à : <code>https://developers.google.com/oauthplayground/#access_token=ya29.xxx...</code></div>
+    <div class="actions">
+      <button class="btn" onclick="closeTokenModal()">Annuler</button>
+      <button class="btn btn-primary" onclick="extractToken()">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- ÉTAPE 2 -->
+<div class="screen" id="sc2">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.75rem">
+      <div class="card-title" style="margin:0">Référentiel des lieux</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="calc-all-btn" onclick="calcAllDistances()">Calculer toutes les distances</button>
+        <button class="validate-all-btn" onclick="validateAll()">Tout valider</button>
+      </div>
+    </div>
+    <p class="card-sub">Les noms en <span style="color:#1a56db;font-style:italic">bleu italique</span> ont été pré-remplis depuis votre agenda. Complétez l'adresse, calculez la distance AR, puis <strong>validez</strong> chaque ligne.</p>
+    <div id="progress-wrap" style="margin-bottom:1rem">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="progress-label" id="progress-label">0 / 0 lieux validés</div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th style="width:16%">Nom du lieu</th><th style="width:27%">Adresse complète</th>
+        <th style="width:16%">Entreprise</th><th style="width:9%">Km AR</th>
+        <th style="width:14%">Distance auto</th><th style="width:12%">Statut</th><th style="width:6%"></th>
+      </tr></thead>
+      <tbody id="lieux-body"></tbody>
+    </table></div>
+    <div style="margin-top:10px"><button class="btn btn-sm" onclick="addLieu()">+ Ajouter un lieu</button></div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="goStep(1)">&#8592; Retour</button>
+    <button class="btn btn-primary" onclick="goStep(3)">Suivant &#8594;</button>
+  </div>
+</div>
+
+<!-- ÉTAPE 3 -->
+<div class="screen" id="sc3">
+  <div class="card">
+    <div class="card-title">Mes véhicules</div>
+    <div class="veh-cards" id="veh-cards"></div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="goStep(2)">&#8592; Retour</button>
+    <button class="btn btn-primary" onclick="goStep(4)">Calculer les IK &#8594;</button>
+  </div>
+</div>
+
+<!-- ÉTAPE 4 -->
+<div class="screen" id="sc4">
+  <div class="card">
+    <div class="card-title">Paramètres de calcul</div>
+    <div class="period-row">
+      <label>Véhicule</label>
+      <select class="veh-sel" id="veh-sel" onchange="renderIK()"></select>
+      <label>Année fiscale</label>
+      <select class="veh-sel" id="annee-sel" onchange="renderIK()">
+        <option value="2025">2025</option><option value="2024">2024</option><option value="2023">2023</option>
+      </select>
+    </div>
+  </div>
+  <div class="metric-grid">
+    <div class="metric"><div class="lbl">Interventions</div><div class="val" id="m-count">—</div></div>
+    <div class="metric"><div class="lbl">Km totaux AR</div><div class="val" id="m-km">—</div></div>
+    <div class="metric"><div class="lbl">IK total</div><div class="val" id="m-ik">—</div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Détail par organisateur</div>
+    <div id="ik-container"><div class="empty">—</div></div>
+  </div>
+  <div class="actions">
+    <button class="btn" onclick="goStep(3)">&#8592; Retour</button>
+    <button class="btn btn-primary" onclick="exportExcel()">Exporter Excel</button>
+  </div>
+</div>
+</div>
+
+<script>
+const CLIENT_ID='953572977793-tgosphmpssiko5vatl0mg0mklshs413k.apps.googleusercontent.com';
+const REDIRECT='https://developers.google.com/oauthplayground';
+const SCOPES='https://www.googleapis.com/auth/calendar.readonly';
+const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
+const BAREME={
+  3:[{max:3000,a:.529,b:0},{max:6000,a:.316,b:639},{max:Infinity,a:.370,b:0}],
+  4:[{max:3000,a:.606,b:0},{max:6000,a:.340,b:799},{max:Infinity,a:.407,b:0}],
+  5:[{max:3000,a:.636,b:0},{max:6000,a:.357,b:837},{max:Infinity,a:.427,b:0}],
+  6:[{max:3000,a:.665,b:0},{max:6000,a:.374,b:876},{max:Infinity,a:.447,b:0}],
+  7:[{max:3000,a:.697,b:0},{max:6000,a:.394,b:922},{max:Infinity,a:.470,b:0}]
+};
+let accessToken=null,eventsFromAgenda=[],eventsManual=[],lieux=[],manualVisible=false;
+let vehicules=[{nom:"",type:"voiture",cv:5},{nom:"",type:"voiture",cv:5},{nom:"",type:"voiture",cv:5}];
+function allEvents(){return[...eventsFromAgenda,...eventsManual];}
+
+function signIn(){
+  const p=new URLSearchParams({
+    client_id:CLIENT_ID,
+    redirect_uri:REDIRECT,
+    response_type:'token',
+    scope:SCOPES,
+    prompt:'select_account'
+  });
+  window.open('https://accounts.google.com/o/oauth2/v2/auth?'+p,'_blank','width=550,height=650');
+  setTimeout(()=>{document.getElementById('token-modal').style.display='flex';},1500);
+}
+
+function closeTokenModal(){document.getElementById('token-modal').style.display='none';}
+
+function extractToken(){
+  const raw=document.getElementById('token-input').value.trim();
+  let token=null;
+  try{
+    // Essai 1 : fragment #access_token=...
+    if(raw.includes('#')){
+      token=new URLSearchParams(raw.split('#')[1]).get('access_token');
+    }
+    // Essai 2 : query ?access_token=...
+    if(!token&&raw.includes('access_token=')){
+      const part=raw.split('access_token=')[1];
+      token=part.split('&')[0];
+    }
+  }catch(e){}
+  if(!token){
+    alert("Token non trouvé. Assurez-vous de copier toute l'URL depuis la barre d'adresse du navigateur après la connexion Google.");
+    return;
+  }
+  accessToken=token;
+  document.getElementById('token-input').value='';
+  closeTokenModal();
+  fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}})
+    .then(r=>r.json()).then(u=>{
+      document.getElementById('user-pill').textContent='✓ '+(u.name||u.email);
+      document.getElementById('auth-section').style.display='none';
+      document.getElementById('user-section').style.display='block';
+      document.getElementById('period-card').style.display='block';
+      document.getElementById('btn-manual-only').style.display='none';
+    }).catch(()=>alert("Erreur de vérification. Réessayez."));
+}
+
+function signOut(){
+  accessToken=null;eventsFromAgenda=[];
+  document.getElementById('auth-section').style.display='block';
+  document.getElementById('user-section').style.display='none';
+  document.getElementById('period-card').style.display='none';
+  document.getElementById('agenda-preview').style.display='none';
+  document.getElementById('agenda-status').innerHTML='';
+  document.getElementById('btn-manual-only').style.display='inline';
+}
+
+async function loadAgenda(){
+  const status=document.getElementById('agenda-status');
+  document.getElementById('agenda-preview').style.display='none';
+  status.innerHTML='<div class="status-pill loading">Chargement…</div>';
+  const from=document.getElementById('date-from').value,to=document.getElementById('date-to').value;
+  if(!from||!to){status.innerHTML='<div class="status-pill error">Définissez une période.</div>';return;}
+  try{
+    const tMin=new Date(from).toISOString(),tMax=new Date(to+'T23:59:59').toISOString();
+    const r=await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${encodeURIComponent(tMin)}&timeMax=${encodeURIComponent(tMax)}&singleEvents=true&orderBy=startTime&maxResults=250`,
+      {headers:{Authorization:'Bearer '+accessToken}});
+    if(r.status===401){status.innerHTML='<div class="status-pill error">Session expirée — reconnectez-vous.</div>';signOut();return;}
+    const d=await r.json();
+    if(!d.items?.length){status.innerHTML='<div class="status-pill error">Aucun événement trouvé.</div>';return;}
+    eventsFromAgenda=d.items.filter(ev=>ev.status!=='cancelled').map(ev=>({
+      titre:ev.summary||'',
+      date:(ev.start?.date||ev.start?.dateTime||'').slice(0,10),
+      lieu:ev.location?ev.location.split(',')[0].trim():'',
+      organisateur:ev.organizer?.displayName||ev.organizer?.email||'',
+      client:ev.summary||''
+    }));
+    status.innerHTML=`<div class="status-pill success">&#10003; ${eventsFromAgenda.length} événements chargés</div>`;
+    renderAgendaPreview();
+  }catch(e){status.innerHTML=`<div class="status-pill error">Erreur : ${e.message}</div>`;}
+}
+
+function renderAgendaPreview(){
+  const ev=allEvents();
+  document.getElementById('prev-count').textContent=eventsFromAgenda.length;
+  document.getElementById('prev-lieux').textContent=[...new Set(ev.map(e=>e.lieu).filter(Boolean))].length;
+  document.getElementById('prev-orgs').textContent=[...new Set(ev.map(e=>e.organisateur).filter(Boolean))].length;
+  document.getElementById('agenda-tbody').innerHTML=eventsFromAgenda.map(ev=>`<tr>
+    <td style="font-size:12px">${ev.date||'—'}</td><td style="font-size:12px">${ev.titre||'—'}</td>
+    <td style="font-size:12px">${ev.organisateur||'—'}</td><td style="font-size:12px">${ev.client||'—'}</td>
+    <td style="font-size:12px">${ev.lieu?`<span class="badge badge-org">${ev.lieu}</span>`:'—'}</td>
+  </tr>`).join('');
+  document.getElementById('agenda-preview').style.display='block';
+}
+
+function toggleManual(forceOpen){
+  manualVisible=forceOpen===true?true:!manualVisible;
+  document.getElementById('manual-section').style.display=manualVisible?'block':'none';
+  if(manualVisible&&eventsManual.length===0)addManualEvent();
+  if(forceOpen===true){document.getElementById('btn-manual-only').style.display='none';document.getElementById('period-card').style.display='none';}
+}
+function addManualEvent(){eventsManual.push({date:'',titre:'',organisateur:'',client:'',lieu:''});renderManual();}
+function renderManual(){
+  document.getElementById('manual-tbody').innerHTML=eventsManual.map((ev,i)=>`<tr>
+    <td><input class="cell-input" type="date" value="${ev.date}" oninput="eventsManual[${i}].date=this.value"/></td>
+    <td><input class="cell-input" value="${esc(ev.titre)}" oninput="eventsManual[${i}].titre=this.value" placeholder="Objet"/></td>
+    <td><input class="cell-input" value="${esc(ev.organisateur)}" oninput="eventsManual[${i}].organisateur=this.value" placeholder="Entreprise"/></td>
+    <td><input class="cell-input" value="${esc(ev.client)}" oninput="eventsManual[${i}].client=this.value" placeholder="Client"/></td>
+    <td><input class="cell-input" value="${esc(ev.lieu)}" oninput="eventsManual[${i}].lieu=this.value" placeholder="Lieu"/></td>
+    <td><button class="btn-danger" onclick="eventsManual.splice(${i},1);renderManual()">&#x2715;</button></td>
+  </tr>`).join('');
+}
+
+function buildLieuxFromAgenda(){
+  const ev=allEvents();
+  const existants=new Set(lieux.map(l=>l.nom.toLowerCase()));
+  [...new Set(ev.map(e=>e.lieu).filter(Boolean))].forEach(nom=>{
+    if(!existants.has(nom.toLowerCase())){
+      const match=ev.find(e=>e.lieu===nom&&e.organisateur);
+      lieux.push({nom,adresse:"",entreprise:match?match.organisateur:"",kmAR:0,distStatus:"",validated:false,autoFilled:true});
+      existants.add(nom.toLowerCase());
+    }
+  });
+  if(!lieux.length)lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});
+  renderLieux();
+}
+
+function renderLieux(){
+  const total=lieux.length,validated=lieux.filter(l=>l.validated).length;
+  document.getElementById('progress-fill').style.width=total?`${Math.round(validated/total*100)}%`:'0%';
+  document.getElementById('progress-label').textContent=`${validated} / ${total} lieu${total>1?'x':''} validé${validated>1?'s':''}`;
+  document.getElementById('lieux-body').innerHTML=lieux.map((l,i)=>`<tr class="lieu-row ${l.validated?'validated':'pending'}">
+    <td><input class="cell-input${l.autoFilled&&!l.validated?' auto-filled':''}" value="${esc(l.nom)}"
+      ${l.validated?'disabled':''} oninput="lieux[${i}].nom=this.value;lieux[${i}].autoFilled=false" placeholder="Nom"/></td>
+    <td><input class="cell-input" value="${esc(l.adresse)}" ${l.validated?'disabled':''} oninput="lieux[${i}].adresse=this.value" placeholder="Adresse, ville, CP"/></td>
+    <td><input class="cell-input" value="${esc(l.entreprise)}" ${l.validated?'disabled':''} oninput="lieux[${i}].entreprise=this.value" placeholder="Entreprise"/></td>
+    <td><input class="cell-input" type="number" value="${l.kmAR||''}" ${l.validated?'disabled':''} oninput="lieux[${i}].kmAR=+this.value" placeholder="0" style="width:55px"/></td>
+    <td>${l.validated?`<span class="status-ok">&#10003; ${l.kmAR} km AR</span>`:
+      l.distStatus==='loading'?'<span class="status-loading">calcul…</span>':
+      l.distStatus==='ok'?`<span class="status-ok">&#10003; ${l.kmAR} km AR</span>`:
+      l.distStatus==='error'?'<span class="status-err">Non trouvée</span>':
+      `<button class="btn-calc" onclick="calcDistance(${i})">Calculer</button>`}</td>
+    <td>${l.validated?`<button class="btn-edit" onclick="lieux[${i}].validated=false;renderLieux()">Modifier</button>`:
+      `<button class="btn-validate" onclick="validateLieu(${i})">Valider &#10003;</button>`}</td>
+    <td style="text-align:center">${l.validated?'':
+      `<button class="btn-danger" onclick="lieux.splice(${i},1);renderLieux()">&#x2715;</button>`}</td>
+  </tr>`).join('');
+}
+
+function validateLieu(i){if(!lieux[i].nom.trim()){alert("Saisissez un nom.");return;}lieux[i].validated=true;lieux[i].autoFilled=false;renderLieux();}
+function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});renderLieux();}
+function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
+
+async function geocode(addr){
+  const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr)}&limit=1`,{headers:{'Accept-Language':'fr'}});
+  const d=await r.json();if(!d.length)throw new Error();return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+}
+async function calcDistance(i){
+  if(!lieux[i].adresse.trim()){alert("Saisissez d'abord une adresse.");return;}
+  lieux[i].distStatus='loading';renderLieux();
+  try{
+    const[a,b]=await Promise.all([geocode(DOMICILE),geocode(lieux[i].adresse)]);
+    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=false`);
+    const d=await r.json();if(d.code!=='Ok')throw new Error();
+    lieux[i].kmAR=Math.round(d.routes[0].distance/1000*2);lieux[i].distStatus='ok';
+  }catch(e){lieux[i].distStatus='error';}renderLieux();
+}
+async function calcAllDistances(){for(let i=0;i<lieux.length;i++)if(lieux[i].adresse.trim()&&!lieux[i].validated)await calcDistance(i);}
+
+function renderVehicules(){
+  document.getElementById('veh-cards').innerHTML=[0,1,2].map(i=>`<div class="veh-card">
+    <div style="font-size:12px;color:#888;margin-bottom:10px;font-weight:500">Véhicule ${i+1}</div>
+    <div class="field"><label>Nom / immatriculation</label>
+      <input value="${vehicules[i].nom}" oninput="vehicules[${i}].nom=this.value" placeholder="Ex: Peugeot 308"/></div>
+    <div class="field"><label>Type</label><select onchange="vehicules[${i}].type=this.value">
+      ${["voiture","moto","scooter"].map(t=>`<option value="${t}" ${vehicules[i].type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
+    <div class="field"><label>Puissance fiscale</label><select onchange="vehicules[${i}].cv=+this.value">
+      ${[3,4,5,6,7].map(c=>`<option value="${c}" ${vehicules[i].cv===c?'selected':''}>${c}${c===7?' CV et +':' CV'}</option>`).join('')}</select></div>
+  </div>`).join('');
+}
+
+function renderVehSel(){document.getElementById('veh-sel').innerHTML=vehicules.map((v,i)=>v.nom?`<option value="${i}">${v.nom} (${v.cv} CV)</option>`:'').join('')||'<option value="0">Véhicule 1 (5 CV)</option>';}
+function calcIK(km,cv){const t=BAREME[Math.min(cv,7)]||BAREME[5];for(const s of t)if(km<=s.max)return km*s.a+s.b;return 0;}
+function getCV(){return vehicules[+document.getElementById('veh-sel').value||0]?.cv||5;}
+function getLieuKm(nom){const l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom?.toLowerCase());return l?l.kmAR:0;}
+
+function renderIK(){
+  const cv=getCV(),ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu)}));
+  const totalKm=ev.reduce((s,e)=>s+e.kmAR,0);
+  document.getElementById('m-count').textContent=ev.length;
+  document.getElementById('m-km').textContent=totalKm.toLocaleString('fr-FR')+' km';
+  document.getElementById('m-ik').textContent=calcIK(totalKm,cv).toFixed(2).replace('.',',')+' €';
+  const byOrg={};ev.forEach(e=>{const k=e.organisateur||'—';if(!byOrg[k])byOrg[k]=[];byOrg[k].push(e);});
+  let html='';
+  Object.entries(byOrg).forEach(([org,evs])=>{
+    const kmOrg=evs.reduce((s,e)=>s+e.kmAR,0),ikOrg=calcIK(kmOrg,cv);
+    html+=`<div style="margin-bottom:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:500">${org}<span class="badge badge-org">organisateur</span></span>
+        <span style="font-size:12px;color:#888">${kmOrg} km &middot; ${ikOrg.toFixed(2).replace('.',',')} &euro;</span>
+      </div>
+      <div class="tbl-wrap"><table style="table-layout:fixed"><thead><tr>
+        <th style="width:12%">Date</th><th style="width:27%">Titre</th>
+        <th style="width:20%">Client<span class="badge badge-client">objet</span></th>
+        <th style="width:18%">Lieu</th><th style="width:11%">Km AR</th><th style="width:12%">IK (&euro;)</th>
+      </tr></thead><tbody>${evs.map(ev=>{const ik=calcIK(ev.kmAR,cv);return`<tr>
+        <td style="font-size:12px">${ev.date||'—'}</td><td style="font-size:12px">${ev.titre||'—'}</td>
+        <td style="font-size:12px">${ev.client||'—'}</td><td style="font-size:12px">${ev.lieu||'—'}</td>
+        <td style="font-size:13px;font-weight:500">${ev.kmAR}</td>
+        <td style="font-size:13px;font-weight:500">${ik.toFixed(2).replace('.',',')}</td>
+      </tr>`;}).join('')}</tbody></table></div></div>`;
+  });
+  document.getElementById('ik-container').innerHTML=html||'<div class="empty">Aucune intervention.</div>';
+}
+
+function exportExcel(){
+  const cv=getCV(),vehNom=vehicules[+document.getElementById('veh-sel').value||0]?.nom||'Véhicule';
+  const from=document.getElementById('date-from').value,to=document.getElementById('date-to').value;
+  const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu)}));
+  const wsData=[["Note de frais kilométriques"],["Période :",(from||'—')+" au "+(to||'—')],
+    ["Véhicule :",vehNom+" ("+cv+" CV)"],["Domicile :","65 impasse de la nature, Jonzieux, 42660"],[],
+    ["Date","Titre","Organisateur","Client / Objet","Lieu","Km AR","IK (€)"]];
+  let gKm=0;
+  ev.forEach(e=>{gKm+=e.kmAR;wsData.push([e.date||'',e.titre||'',e.organisateur||'',e.client||'',e.lieu||'',e.kmAR,parseFloat(calcIK(e.kmAR,cv).toFixed(2))]);});
+  wsData.push([],["","","","","Total",gKm,parseFloat(calcIK(gKm,cv).toFixed(2))]);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);ws['!cols']=[{wch:12},{wch:32},{wch:22},{wch:22},{wch:18},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,"Détail IK");
+  const byOrg={};ev.forEach(e=>{const k=e.organisateur||'—';if(!byOrg[k])byOrg[k]=[];byOrg[k].push(e);});
+  const ws2=[["Synthèse"],[""],["Organisateur","Interventions","Km","IK (€)"]];
+  Object.entries(byOrg).forEach(([o,evs])=>{const k=evs.reduce((s,e)=>s+e.kmAR,0);ws2.push([o,evs.length,k,parseFloat(calcIK(k,cv).toFixed(2))]);});
+  const ws2s=XLSX.utils.aoa_to_sheet(ws2);ws2s['!cols']=[{wch:25},{wch:15},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws2s,"Synthèse");
+  const ws3=[["Lieux"],[""],["Nom","Adresse","Entreprise","Km AR","Validé"]];
+  lieux.forEach(l=>ws3.push([l.nom,l.adresse,l.entreprise,l.kmAR,l.validated?'Oui':'Non']));
+  const ws3s=XLSX.utils.aoa_to_sheet(ws3);ws3s['!cols']=[{wch:20},{wch:30},{wch:20},{wch:10},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws3s,"Lieux");
+  XLSX.writeFile(wb,`IK_${from||'export'}_${to||''}.xlsx`);
+}
+
+function goStep(n){
+  [1,2,3,4].forEach(i=>{document.getElementById('sc'+i).classList.toggle('active',i===n);document.getElementById('stp'+i).classList.remove('active','done');});
+  document.getElementById('stp'+n).classList.add('active');
+  for(let i=1;i<n;i++)document.getElementById('stp'+i).classList.add('done');
+  if(n===3)renderVehicules();if(n===4){renderVehSel();renderIK();}
+}
+function setDefaultPeriod(){
+  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  document.getElementById('date-from').value=new Date(y,m,1).toISOString().slice(0,10);
+  document.getElementById('date-to').value=new Date(y,m+1,0).toISOString().slice(0,10);
+}
+function esc(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+renderVehicules();setDefaultPeriod();
+</script>
+</body>
+</html>
