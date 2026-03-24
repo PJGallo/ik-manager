@@ -289,6 +289,9 @@ const ADRESSES_CONNUES={
   "MPE Europe":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
   "MPE":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
   "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond",
+  "Saint-Etienne 1997 Rue Jean Rostand":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
+  "MA BOST":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
+  "INTERVENTION MA BOST":"1997 Rue Jean Rostand, 42100 Saint-Etienne",
   "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles"
 };
 
@@ -525,18 +528,48 @@ function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});ren
 function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
 
 async function geocode(addr){
-  // Essai 1 : adresse complète
-  let r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
-  let d=await r.json();
-  if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
-  // Essai 2 : extraire CP + ville uniquement
-  const cpVille=addr.match(/(\d{5}\s+[\w\s-]+)/);
-  if(cpVille){
-    r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(cpVille[1])+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
-    d=await r.json();
+  const q=encodeURIComponent(addr);
+  // Tentative 1 : API Adresse du gouvernement français (la plus fiable pour la France)
+  try{
+    const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+q+'&limit=1');
+    const d=await r.json();
+    if(d.features&&d.features.length){
+      const[lon,lat]=d.features[0].geometry.coordinates;
+      return {lat,lon};
+    }
+  }catch(e){}
+  // Tentative 2 : Nominatim avec adresse complète
+  try{
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+q+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr','User-Agent':'IK-Manager/1.0'}});
+    const d=await r.json();
     if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  }catch(e){}
+  // Tentative 3 : juste le code postal + ville
+  const cpVille=addr.match(/(\d{5}\s+[\w\s\-]+)/);
+  if(cpVille){
+    try{
+      const q2=encodeURIComponent(cpVille[1].trim());
+      const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+q2+'&limit=1');
+      const d=await r.json();
+      if(d.features&&d.features.length){
+        const[lon,lat]=d.features[0].geometry.coordinates;
+        return {lat,lon};
+      }
+    }catch(e){}
   }
-  throw new Error('Adresse introuvable: '+addr);
+  // Tentative 4 : ville seule extraite du code postal
+  const cp=addr.match(/\d{5}/);
+  if(cp){
+    try{
+      const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+cp[0]+'&limit=1');
+      const d=await r.json();
+      if(d.features&&d.features.length){
+        const[lon,lat]=d.features[0].geometry.coordinates;
+        return {lat,lon};
+      }
+    }catch(e){}
+  }
+  throw new Error('Introuvable: '+addr);
 }
 async function calcDistance(i){
   if(!lieux[i].adresse.trim()) return;
