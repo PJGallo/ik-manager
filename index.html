@@ -138,8 +138,8 @@ td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:middle}
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
-          <th style="width:11%">Date</th><th style="width:28%">Titre</th>
-          <th style="width:19%">Organisateur</th><th style="width:19%">Client</th><th style="width:17%">Lieu</th><th style="width:6%"></th>
+          <th style="width:10%">Date</th><th style="width:22%">Titre</th>
+          <th style="width:17%">Organisateur</th><th style="width:17%">Motif</th><th style="width:16%">Lieu</th><th style="width:12%">Entité</th><th style="width:6%"></th>
         </tr></thead>
         <tbody id="agenda-tbody"></tbody>
       </table></div>
@@ -280,14 +280,14 @@ const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
 const ADRESSES_CONNUES={
   "ELS ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
   "BUREAUX ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "Plusécur":"ZA La Croix Saint-Martin, 43120 Monistiol-sur-Loire",
-  "PLUSECUR":"ZA La Croix Saint-Martin, 43120 Monistiol-sur-Loire",
+  "Plusécur":"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
+  "PLUSECUR":"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
   "GROUPE DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
   "PROTECH":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
   "SOMAIN":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "CHAMBON":"Allée André Marie Ampère, 42500 Le Chambon-Feugerolles",
-  "MPE Europe":"3a Boulevard François Mitterrand, 43120 Monistiol-sur-Loire",
-  "MPE":"3a Boulevard François Mitterrand, 43120 Monistiol-sur-Loire",
+  "CHAMBON":"All. André Marie Ampère, 42500 Le Chambon-Feugerolles",
+  "MPE Europe":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
+  "MPE":"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire",
   "SICAF":"5 Rue Julien Chomienne, 42400 Saint-Chamond",
   "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles"
 };
@@ -297,10 +297,12 @@ const CAL_ENTITE={
   "PJGEI":"PJGEI",
   "PJGEIPF26":"PJGEIPF26",
   "Agenda d'interventions le Génésienne":"CSL42",
+  "Agenda d'interventions le Genesienne":"CSL42",
   "Agenda des interventions DENIS":"CSL42",
   "DENIS":"CSL42",
   "GENESIENNE":"CSL42",
-  "CSL 42 Gallo":"CSL42"
+  "CSL 42 Gallo":"CSL42",
+  "CSL42":"CSL42"
 };
 
 function getEntite(calendrier, organisateur){
@@ -425,7 +427,8 @@ async function loadAgenda(){
         organisateur:ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||ev._calName||'',
         client:ev.summary||'',
         calendrier:ev._calName||'',
-        entite:getEntite(ev._calName||'', ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||'')
+        entite:getEntite(ev._calName||'', ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||''),
+        motif:(ev.description||'').split('\n')[0].replace(/<[^>]+>/g,'').trim().substring(0,80)
       })).sort((a,b)=>a.date.localeCompare(b.date));
     status.innerHTML='<div class="status-pill success">&#10003; '+eventsFromAgenda.length+' événements chargés depuis '+calendars.length+' calendriers</div>';
     renderAgendaPreview();
@@ -438,9 +441,12 @@ function renderAgendaPreview(){
   document.getElementById('prev-lieux').textContent=[...new Set(ev.map(e=>e.lieu).filter(Boolean))].length;
   document.getElementById('prev-orgs').textContent=[...new Set(ev.map(e=>e.organisateur).filter(Boolean))].length;
   document.getElementById('agenda-tbody').innerHTML=eventsFromAgenda.map((ev,i)=>`<tr id="agenda-row-${i}">
-    <td style="font-size:12px">${ev.date||'—'}</td><td style="font-size:12px">${ev.titre||'—'}</td>
-    <td style="font-size:12px">${ev.organisateur||'—'}</td><td style="font-size:12px">${ev.client||'—'}</td>
+    <td style="font-size:12px">${ev.date||'—'}</td>
+    <td style="font-size:12px">${ev.titre||'—'}</td>
+    <td style="font-size:12px">${ev.organisateur||'—'}</td>
+    <td style="font-size:11px;color:#555">${ev.motif||'—'}</td>
     <td style="font-size:12px">${ev.lieu?`<span class="badge badge-org">${ev.lieu}</span>`:'—'}</td>
+    <td style="font-size:11px"><span style="padding:2px 6px;border-radius:4px;background:${{PJGEI:'#e8f0fe',PJGEIPF26:'#fce8f3',CSL42:'#e8f5e9'}[ev.entite]||'#f5f5f0'};color:${{PJGEI:'#1a56db',PJGEIPF26:'#9b1b6e',CSL42:'#2e7d32'}[ev.entite]||'#888'}">${ev.entite||'—'}</span></td>
     <td style="text-align:center"><button class="btn-danger" onclick="eventsFromAgenda.splice(${i},1);renderAgendaPreview()" title="Supprimer">&#x2715;</button></td>
   </tr>`).join('');
   document.getElementById('agenda-preview').style.display='block';
@@ -598,15 +604,16 @@ function renderIK(){
       </div>
       <div class="tbl-wrap"><table style="table-layout:fixed">
         <thead><tr style="background:#fafafa">
-          <th style="width:11%">Date</th><th style="width:26%">Titre</th>
-          <th style="width:19%">Lieu</th><th style="width:22%">Adresse</th>
-          <th style="width:10%">Km AR</th><th style="width:12%">IK (€)</th>
+          <th style="width:10%">Date</th><th style="width:20%">Titre</th>
+          <th style="width:18%">Motif</th><th style="width:15%">Lieu</th><th style="width:18%">Adresse</th>
+          <th style="width:9%">Km AR</th><th style="width:10%">IK (€)</th>
         </tr></thead>
         <tbody>${evs.map(ev=>{const ik=calcIK(ev.kmAR,cv);
           const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===ev.lieu?.toLowerCase());
           return`<tr>
           <td style="font-size:12px">${ev.date||'—'}</td>
           <td style="font-size:12px">${ev.titre||'—'}</td>
+          <td style="font-size:11px;color:#555">${ev.motif||'—'}</td>
           <td style="font-size:12px">${ev.lieu||'—'}</td>
           <td style="font-size:11px;color:#666">${lieuObj?lieuObj.adresse:''}</td>
           <td style="font-size:13px;font-weight:500">${ev.kmAR}</td>
@@ -624,12 +631,12 @@ function exportExcelEntite(entite){
   const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu),entite:e.entite||getEntite(e.calendrier||'',e.organisateur||'')})).filter(e=>e.entite===entite);
   const wsData=[[`Note de frais kilométriques — ${entite}`],["Période :",(from||'—')+" au "+(to||'—')],
     ["Véhicule :",vehNom+" ("+cv+" CV)"],["Domicile :","65 impasse de la nature, Jonzieux, 42660"],[],
-    ["Date","Titre","Lieu","Adresse","Km AR","IK (€)"]];
+    ["Date","Titre","Motif du déplacement","Lieu","Adresse","Km AR","IK (€)"]];
   let gKm=0;
   ev.forEach(e=>{
     gKm+=e.kmAR;
     const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===e.lieu?.toLowerCase());
-    wsData.push([e.date||'',e.titre||'',e.lieu||'',lieuObj?lieuObj.adresse:'',e.kmAR,parseFloat(calcIK(e.kmAR,cv).toFixed(2))]);
+    wsData.push([e.date||'',e.titre||'',e.motif||'',e.lieu||'',lieuObj?lieuObj.adresse:'',e.kmAR,parseFloat(calcIK(e.kmAR,cv).toFixed(2))]);
   });
   wsData.push([],["","","","Total",gKm,parseFloat(calcIK(gKm,cv).toFixed(2))]);
   const wb=XLSX.utils.book_new();
