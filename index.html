@@ -275,6 +275,52 @@ const CLIENT_ID='953572977793-tgosphmpssiko5vatl0mg0mklshs413k.apps.googleuserco
 const REDIRECT="https://pjgallo.github.io/ik-manager/";
 const SCOPES='https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events.readonly';
 const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
+
+// Référentiel des adresses connues
+const ADRESSES_CONNUES={
+  "ELS ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
+  "BUREAUX ANDREZIEUX":"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
+  "Plusécur":"ZA, La Croix Saint-Martin, 43120 Monistol-sur-Loire",
+  "PLUSECUR":"ZA, La Croix Saint-Martin, 43120 Monistol-sur-Loire",
+  "GROUPE DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "PROTECH":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "SOMAIN":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "Réfectoire DSO, DSM, SERTAC, DENIS":"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "CHAMBON":"All. André Marie Ampère, 42500 Le Chambon-Feugerolles",
+  "MPE Europe":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire",
+  "MPE":"3a Bd François Mitterrand, 43120 Monistol-sur-Loire"
+};
+
+// Correspondance calendrier → entité IK
+const CAL_ENTITE={
+  "PJGEI":"PJGEI",
+  "PJGEIPF26":"PJGEIPF26",
+  "Agenda d'interventions le Génésienne":"CSL42",
+  "Agenda des interventions DENIS":"CSL42",
+  "DENIS":"CSL42",
+  "GENESIENNE":"CSL42",
+  "CSL 42 Gallo":"CSL42"
+};
+
+function getEntite(calendrier, organisateur){
+  if(!calendrier&&!organisateur) return "CSL42";
+  for(const [k,v] of Object.entries(CAL_ENTITE)){
+    if((calendrier||'').includes(k)||(organisateur||'').includes(k)) return v;
+  }
+  if((organisateur||'').includes('PJGEI')) return 'PJGEI';
+  return "CSL42";
+}
+
+function getAdresse(lieu){
+  if(!lieu) return '';
+  // Si le lieu contient déjà une vraie adresse (numéro + rue)
+  if(/\d+.*rue|\d+.*avenue|\d+.*boulevard|\d+.*chemin|\d+.*allée|ZAC|ZA,/i.test(lieu)) return lieu;
+  // Chercher dans le référentiel
+  for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
+    if(lieu.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(lieu.toLowerCase())) return v;
+  }
+  return '';
+}
 const BAREME={
   3:[{max:3000,a:.529,b:0},{max:6000,a:.316,b:639},{max:Infinity,a:.370,b:0}],
   4:[{max:3000,a:.606,b:0},{max:6000,a:.340,b:799},{max:Infinity,a:.407,b:0}],
@@ -373,7 +419,8 @@ async function loadAgenda(){
         lieu:ev.location?ev.location.split(',')[0].trim():'',
         organisateur:ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||ev._calName||'',
         client:ev.summary||'',
-        calendrier:ev._calName||''
+        calendrier:ev._calName||'',
+        entite:getEntite(ev._calName||'', ev.organizer&&(ev.organizer.displayName||ev.organizer.email)||'')
       })).sort((a,b)=>a.date.localeCompare(b.date));
     status.innerHTML='<div class="status-pill success">&#10003; '+eventsFromAgenda.length+' événements chargés depuis '+calendars.length+' calendriers</div>';
     renderAgendaPreview();
@@ -418,7 +465,8 @@ function buildLieuxFromAgenda(){
   [...new Set(ev.map(e=>e.lieu).filter(Boolean))].forEach(nom=>{
     if(!existants.has(nom.toLowerCase())){
       const match=ev.find(e=>e.lieu===nom&&e.organisateur);
-      lieux.push({nom,adresse:"",entreprise:match?match.organisateur:"",kmAR:0,distStatus:"",validated:false,autoFilled:true});
+      const adresseAuto=getAdresse(nom);
+      lieux.push({nom,adresse:adresseAuto,entreprise:match?match.organisateur:"",kmAR:0,distStatus:adresseAuto?"":"",validated:false,autoFilled:true});
       existants.add(nom.toLowerCase());
     }
   });
@@ -486,32 +534,70 @@ function getCV(){return vehicules[+document.getElementById('veh-sel').value||0]?
 function getLieuKm(nom){const l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom?.toLowerCase());return l?l.kmAR:0;}
 
 function renderIK(){
-  const cv=getCV(),ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu)}));
+  const cv=getCV();
+  const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu),entite:e.entite||getEntite(e.calendrier||'',e.organisateur||'')}));
   const totalKm=ev.reduce((s,e)=>s+e.kmAR,0);
   document.getElementById('m-count').textContent=ev.length;
   document.getElementById('m-km').textContent=totalKm.toLocaleString('fr-FR')+' km';
   document.getElementById('m-ik').textContent=calcIK(totalKm,cv).toFixed(2).replace('.',',')+' €';
-  const byOrg={};ev.forEach(e=>{const k=e.organisateur||'—';if(!byOrg[k])byOrg[k]=[];byOrg[k].push(e);});
+
+  const ENTITES=['PJGEI','PJGEIPF26','CSL42'];
+  const COLORS={'PJGEI':'#e8f0fe','PJGEIPF26':'#fce8f3','CSL42':'#e8f5e9'};
+  const TCOLORS={'PJGEI':'#1a56db','PJGEIPF26':'#9b1b6e','CSL42':'#2e7d32'};
   let html='';
-  Object.entries(byOrg).forEach(([org,evs])=>{
-    const kmOrg=evs.reduce((s,e)=>s+e.kmAR,0),ikOrg=calcIK(kmOrg,cv);
-    html+=`<div style="margin-bottom:1.5rem">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:13px;font-weight:500">${org}<span class="badge badge-org">organisateur</span></span>
-        <span style="font-size:12px;color:#888">${kmOrg} km &middot; ${ikOrg.toFixed(2).replace('.',',')} &euro;</span>
+  ENTITES.forEach(entite=>{
+    const evs=ev.filter(e=>e.entite===entite);
+    if(!evs.length) return;
+    const kmTotal=evs.reduce((s,e)=>s+e.kmAR,0);
+    const ikTotal=calcIK(kmTotal,cv);
+    html+=`<div style="margin-bottom:2rem;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
+      <div style="background:${COLORS[entite]};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:500;color:${TCOLORS[entite]}">${entite}</span>
+        <div style="display:flex;gap:16px;align-items:center">
+          <span style="font-size:13px;color:${TCOLORS[entite]}">${evs.length} intervention${evs.length>1?'s':''} &middot; ${kmTotal} km &middot; <strong>${ikTotal.toFixed(2).replace('.',',')} €</strong></span>
+          <button onclick="exportExcelEntite('${entite}')" style="font-size:11px;padding:4px 10px;border:1px solid ${TCOLORS[entite]};border-radius:6px;background:white;color:${TCOLORS[entite]};cursor:pointer">Exporter Excel</button>
+        </div>
       </div>
-      <div class="tbl-wrap"><table style="table-layout:fixed"><thead><tr>
-        <th style="width:12%">Date</th><th style="width:27%">Titre</th>
-        <th style="width:20%">Client<span class="badge badge-client">objet</span></th>
-        <th style="width:18%">Lieu</th><th style="width:11%">Km AR</th><th style="width:12%">IK (&euro;)</th>
-      </tr></thead><tbody>${evs.map(ev=>{const ik=calcIK(ev.kmAR,cv);return`<tr>
-        <td style="font-size:12px">${ev.date||'—'}</td><td style="font-size:12px">${ev.titre||'—'}</td>
-        <td style="font-size:12px">${ev.client||'—'}</td><td style="font-size:12px">${ev.lieu||'—'}</td>
-        <td style="font-size:13px;font-weight:500">${ev.kmAR}</td>
-        <td style="font-size:13px;font-weight:500">${ik.toFixed(2).replace('.',',')}</td>
-      </tr>`;}).join('')}</tbody></table></div></div>`;
+      <div class="tbl-wrap"><table style="table-layout:fixed">
+        <thead><tr style="background:#fafafa">
+          <th style="width:11%">Date</th><th style="width:26%">Titre</th>
+          <th style="width:19%">Lieu</th><th style="width:22%">Adresse</th>
+          <th style="width:10%">Km AR</th><th style="width:12%">IK (€)</th>
+        </tr></thead>
+        <tbody>${evs.map(ev=>{const ik=calcIK(ev.kmAR,cv);
+          const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===ev.lieu?.toLowerCase());
+          return`<tr>
+          <td style="font-size:12px">${ev.date||'—'}</td>
+          <td style="font-size:12px">${ev.titre||'—'}</td>
+          <td style="font-size:12px">${ev.lieu||'—'}</td>
+          <td style="font-size:11px;color:#666">${lieuObj?lieuObj.adresse:''}</td>
+          <td style="font-size:13px;font-weight:500">${ev.kmAR}</td>
+          <td style="font-size:13px;font-weight:500">${ik.toFixed(2).replace('.',',')}</td>
+        </tr>`;}).join('')}</tbody>
+      </table></div>
+    </div>`;
   });
   document.getElementById('ik-container').innerHTML=html||'<div class="empty">Aucune intervention.</div>';
+}
+
+function exportExcelEntite(entite){
+  const cv=getCV(),vehNom=vehicules[+document.getElementById('veh-sel').value||0]?.nom||'Véhicule';
+  const from=document.getElementById('date-from').value,to=document.getElementById('date-to').value;
+  const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu),entite:e.entite||getEntite(e.calendrier||'',e.organisateur||'')})).filter(e=>e.entite===entite);
+  const wsData=[[`Note de frais kilométriques — ${entite}`],["Période :",(from||'—')+" au "+(to||'—')],
+    ["Véhicule :",vehNom+" ("+cv+" CV)"],["Domicile :","65 impasse de la nature, Jonzieux, 42660"],[],
+    ["Date","Titre","Lieu","Adresse","Km AR","IK (€)"]];
+  let gKm=0;
+  ev.forEach(e=>{
+    gKm+=e.kmAR;
+    const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===e.lieu?.toLowerCase());
+    wsData.push([e.date||'',e.titre||'',e.lieu||'',lieuObj?lieuObj.adresse:'',e.kmAR,parseFloat(calcIK(e.kmAR,cv).toFixed(2))]);
+  });
+  wsData.push([],["","","","Total",gKm,parseFloat(calcIK(gKm,cv).toFixed(2))]);
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(wsData);ws['!cols']=[{wch:12},{wch:32},{wch:18},{wch:35},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,"IK "+entite);
+  XLSX.writeFile(wb,`IK_${entite}_${from||'export'}_${to||''}.xlsx`);
 }
 
 function exportExcel(){
