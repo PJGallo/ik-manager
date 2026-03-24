@@ -490,7 +490,7 @@ function buildLieuxFromAgenda(){
         adresseAuto = getAdresse(lieuBrut);
       }
       if(!existants.has(nom.toLowerCase())){
-        lieux.push({nom,adresse:adresseAuto,entreprise:match?match.organisateur:"",kmAR:0,distStatus:"",validated:false,autoFilled:true});
+        const entiteAuto=match?getEntite(match.calendrier||'',match.organisateur||''):''; lieux.push({nom,adresse:adresseAuto,entreprise:entiteAuto,kmAR:0,distStatus:"",validated:false,autoFilled:true});
         existants.add(nom.toLowerCase());
       }
     }
