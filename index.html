@@ -204,20 +204,19 @@ td{padding:5px 8px;border-bottom:1px solid #eee;vertical-align:middle}
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:.75rem">
       <div class="card-title" style="margin:0">Référentiel des lieux</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="calc-all-btn" onclick="calcAllDistances()">Calculer toutes les distances</button>
-        <button class="validate-all-btn" onclick="validateAll()">Tout valider</button>
+        <button class="validate-all-btn" onclick="validateAll()">Tout confirmer</button>
       </div>
     </div>
-    <p class="card-sub">Les noms en <span style="color:#1a56db;font-style:italic">bleu italique</span> ont été pré-remplis depuis votre agenda. Complétez l'adresse, calculez la distance AR, puis <strong>validez</strong> chaque ligne.</p>
+    <p class="card-sub">Les adresses sont pré-remplies. Pour chaque lieu : <strong>1.</strong> cliquez "Vérifier sur Maps" pour voir l'itinéraire depuis votre domicile &rarr; <strong>2.</strong> saisissez les km AR indiqués par Maps &rarr; <strong>3.</strong> cliquez "Confirmer".</p>
     <div id="progress-wrap" style="margin-bottom:1rem">
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
       <div class="progress-label" id="progress-label">0 / 0 lieux validés</div>
     </div>
     <div class="tbl-wrap"><table>
       <thead><tr>
-        <th style="width:16%">Nom du lieu</th><th style="width:27%">Adresse complète</th>
-        <th style="width:16%">Entreprise</th><th style="width:9%">Km AR</th>
-        <th style="width:14%">Distance auto</th><th style="width:12%">Statut</th><th style="width:6%"></th>
+        <th style="width:18%">Nom du lieu</th><th style="width:30%">Adresse + Maps</th>
+        <th style="width:14%">Entité</th><th style="width:12%">Km AR (depuis Maps)</th>
+        <th style="width:12%">Statut</th><th style="width:10%">Action</th><th style="width:4%"></th>
       </tr></thead>
       <tbody id="lieux-body"></tbody>
     </table></div>
@@ -516,23 +515,56 @@ function buildLieuxFromAgenda(){
 function renderLieux(){
   const total=lieux.length,validated=lieux.filter(l=>l.validated).length;
   document.getElementById('progress-fill').style.width=total?`${Math.round(validated/total*100)}%`:'0%';
-  document.getElementById('progress-label').textContent=`${validated} / ${total} lieu${total>1?'x':''} validé${validated>1?'s':''}`;
-  document.getElementById('lieux-body').innerHTML=lieux.map((l,i)=>`<tr class="lieu-row ${l.validated?'validated':'pending'}">
-    <td><input class="cell-input${l.autoFilled&&!l.validated?' auto-filled':''}" value="${esc(l.nom)}"
-      ${l.validated?'disabled':''} oninput="lieux[${i}].nom=this.value;lieux[${i}].autoFilled=false" placeholder="Nom"/></td>
-    <td><input class="cell-input" value="${esc(l.adresse)}" ${l.validated?'disabled':''} oninput="lieux[${i}].adresse=this.value" placeholder="Adresse, ville, CP"/></td>
-    <td><input class="cell-input" value="${esc(l.entreprise)}" ${l.validated?'disabled':''} oninput="lieux[${i}].entreprise=this.value" placeholder="Entreprise"/></td>
-    <td><input class="cell-input" type="number" value="${l.kmAR||''}" ${l.validated?'disabled':''} oninput="lieux[${i}].kmAR=+this.value" placeholder="0" style="width:55px"/></td>
-    <td>${l.validated?`<span class="status-ok">&#10003; ${l.kmAR} km AR</span>`:
-      l.distStatus==='loading'?'<span class="status-loading">calcul…</span>':
-      l.distStatus==='ok'?`<span class="status-ok">&#10003; ${l.kmAR} km AR</span>`:
-      l.distStatus==='error'?'<span class="status-err">Non trouvée</span>':
-      `<button class="btn-calc" onclick="calcDistance(${i})">Calculer</button>`}</td>
-    <td>${l.validated?`<button class="btn-edit" onclick="lieux[${i}].validated=false;renderLieux()">Modifier</button>`:
-      `<button class="btn-validate" onclick="validateLieu(${i})">Valider &#10003;</button>`}</td>
-    <td style="text-align:center">${l.validated?'':
-      `<button class="btn-danger" onclick="lieux.splice(${i},1);renderLieux()">&#x2715;</button>`}</td>
-  </tr>`).join('');
+  document.getElementById('progress-label').textContent=`${validated} / ${total} lieu${total>1?'x':''} confirmé${validated>1?'s':''}`;
+  document.getElementById('lieux-body').innerHTML=lieux.map((l,i)=>{
+    const mapsUrl='https://www.google.com/maps/dir/'+encodeURIComponent(DOMICILE)+'/'+encodeURIComponent(l.adresse||l.nom);
+    return `<tr class="lieu-row ${l.validated?'validated':'pending'}" style="${l.validated?'background:#f1f8f1':''}">
+      <td>
+        <input class="cell-input${l.autoFilled&&!l.validated?' auto-filled':''}" value="${esc(l.nom)}"
+          ${l.validated?'disabled':''} oninput="lieux[${i}].nom=this.value;lieux[${i}].autoFilled=false"
+          placeholder="Nom du lieu"/>
+      </td>
+      <td>
+        <input class="cell-input" value="${esc(l.adresse)}"
+          ${l.validated?'disabled':''} oninput="lieux[${i}].adresse=this.value"
+          placeholder="Adresse complète"/>
+        ${!l.validated?`<div style="margin-top:4px">
+          <a href="${mapsUrl}" target="_blank"
+            style="font-size:11px;color:#1a56db;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid #a8c0f8;border-radius:4px;background:#fff">
+            &#128205; Vérifier sur Maps
+          </a>
+        </div>`:''}
+      </td>
+      <td>
+        <input class="cell-input" value="${esc(l.entreprise)}"
+          ${l.validated?'disabled':''} oninput="lieux[${i}].entreprise=this.value"
+          placeholder="Entité"/>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input class="cell-input" type="number" value="${l.kmAR||''}"
+            ${l.validated?'disabled':''} oninput="lieux[${i}].kmAR=+this.value"
+            placeholder="0" style="width:55px"/>
+          ${!l.validated?`<span style="font-size:10px;color:#aaa">km AR</span>`:''}
+        </div>
+      </td>
+      <td>
+        ${l.validated
+          ? `<span style="font-size:11px;color:#2e7d32;font-weight:500">&#10003; ${l.kmAR} km AR</span>`
+          : `<span style="font-size:11px;color:#888">Saisissez les km<br>depuis Maps</span>`
+        }
+      </td>
+      <td>
+        ${l.validated
+          ? `<button class="btn-edit" onclick="lieux[${i}].validated=false;renderLieux()">Modifier</button>`
+          : `<button class="btn-validate" onclick="validateLieu(${i})">Confirmer &#10003;</button>`
+        }
+      </td>
+      <td style="text-align:center">
+        ${l.validated?'':`<button class="btn-danger" onclick="lieux.splice(${i},1);renderLieux()">&#x2715;</button>`}
+      </td>
+    </tr>`;
+  }).join('');
 }
 
 function validateLieu(i){if(!lieux[i].nom.trim()){alert("Saisissez un nom.");return;}lieux[i].validated=true;lieux[i].autoFilled=false;renderLieux();}
@@ -677,8 +709,7 @@ function setDefaultPeriod(){
 function esc(s){return(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 renderVehicules();setDefaultPeriod();
 
-// Détection automatique du token dans l'URL au chargement
-(function(){
+document.addEventListener('DOMContentLoaded', function(){
   const hash = window.location.hash || window.location.search;
   if(hash && hash.includes('access_token=')){
     let token = null;
@@ -688,9 +719,7 @@ renderVehicules();setDefaultPeriod();
     }catch(e){}
     if(token){
       accessToken = token;
-      // Nettoyer l'URL sans recharger la page
       window.history.replaceState({}, document.title, window.location.pathname);
-      // Récupérer les infos utilisateur
       fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}})
         .then(r=>r.json()).then(u=>{
           document.getElementById('user-pill').textContent='✓ '+(u.name||u.email);
@@ -699,10 +728,13 @@ renderVehicules();setDefaultPeriod();
           document.getElementById('period-card').style.display='block';
           document.getElementById('btn-manual-only').style.display='none';
           document.getElementById('token-modal').style.display='none';
+        }).catch(()=>{
+          // Token invalide - réafficher le bouton de connexion
+          accessToken=null;
         });
     }
   }
-})();
+});
 </script>
 </body>
 </html>
