@@ -344,7 +344,29 @@ const BAREME={
   6:[{max:3000,a:.665,b:0},{max:6000,a:.374,b:876},{max:Infinity,a:.447,b:0}],
   7:[{max:3000,a:.697,b:0},{max:6000,a:.394,b:922},{max:Infinity,a:.470,b:0}]
 };
-let accessToken=null,eventsFromAgenda=[],eventsManual=[],lieux=[],manualVisible=false;
+let accessToken=null,eventsFromAgenda=[],eventsManual=[],manualVisible=false;
+
+// Charger le référentiel sauvegardé
+function loadSavedLieux(){
+  try{
+    const saved=localStorage.getItem('ik_lieux_referentiel');
+    if(saved) return JSON.parse(saved);
+  }catch(e){}
+  return [];
+}
+function saveLieux(){
+  try{
+    // Sauvegarder uniquement les lieux validés avec leurs km
+    const toSave=lieux.filter(l=>l.nom&&l.kmAR>0).map(l=>({nom:l.nom,adresse:l.adresse,entreprise:l.entreprise,kmAR:l.kmAR}));
+    localStorage.setItem('ik_lieux_referentiel',JSON.stringify(toSave));
+  }catch(e){}
+}
+function getSavedKm(nom,adresse){
+  const saved=loadSavedLieux();
+  const found=saved.find(l=>l.nom.toLowerCase()===nom.toLowerCase()||(adresse&&l.adresse&&l.adresse.toLowerCase()===adresse.toLowerCase()));
+  return found?found.kmAR:0;
+}
+let lieux=[];
 let vehicules=[{nom:"Volkswagen Sharan",type:"voiture",cv:7}];
 function allEvents(){return[...eventsFromAgenda,...eventsManual];}
 
@@ -487,7 +509,7 @@ function buildLieuxFromAgenda(){
     let nom=lieuBrut;
     let adresseAuto='';
     let kmAuto=0;
-    // Chercher dans le référentiel
+    // 1. Chercher dans le référentiel ADRESSES_CONNUES
     for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
       if(nom.toLowerCase()===k.toLowerCase()||nom.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(nom.toLowerCase())){
         adresseAuto=v.adresse;
@@ -495,10 +517,15 @@ function buildLieuxFromAgenda(){
         break;
       }
     }
-    // Si adresse brute avec CP
+    // 2. Chercher dans le localStorage (valeurs confirmées précédemment)
+    const savedKm=getSavedKm(nom, adresseAuto);
+    if(savedKm>0) kmAuto=savedKm;
+    // 3. Si adresse brute avec CP
     if(!adresseAuto && /[0-9]{5}/.test(lieuBrut)){
       adresseAuto=lieuBrut;
       nom=lieuBrut.split(',')[0].trim().substring(0,30);
+      const savedKm2=getSavedKm(nom, adresseAuto);
+      if(savedKm2>0) kmAuto=savedKm2;
     }
     if(!existants.has(nom.toLowerCase())){
       const match=ev.find(e=>e.lieu===lieuBrut&&e.organisateur);
@@ -566,8 +593,14 @@ function renderLieux(){
   }).join('');
 }
 
-function validateLieu(i){if(!lieux[i].nom.trim()){alert("Saisissez un nom.");return;}lieux[i].validated=true;lieux[i].autoFilled=false;renderLieux();}
-function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});renderLieux();}
+function validateLieu(i){
+  if(!lieux[i].nom.trim()){alert("Saisissez un nom.");return;}
+  lieux[i].validated=true;
+  lieux[i].autoFilled=false;
+  saveLieux();
+  renderLieux();
+}
+function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});saveLieux();renderLieux();}
 function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
 
 async function geocode(addr){
