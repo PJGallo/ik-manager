@@ -342,7 +342,7 @@ const BAREME={
   7:[{max:3000,a:.697,b:0},{max:6000,a:.394,b:922},{max:Infinity,a:.470,b:0}]
 };
 let accessToken=null,eventsFromAgenda=[],eventsManual=[],lieux=[],manualVisible=false;
-let vehicules=[{nom:"",type:"voiture",cv:5},{nom:"",type:"voiture",cv:5},{nom:"",type:"voiture",cv:5}];
+let vehicules=[{nom:"Volkswagen Sharan",type:"voiture",cv:7}];
 function allEvents(){return[...eventsFromAgenda,...eventsManual];}
 
 function signIn(){
@@ -590,68 +590,26 @@ async function calcAllDistances(){
 }
 
 function renderVehicules(){
-  document.getElementById('veh-cards').innerHTML=[0,1,2].map(i=>`<div class="veh-card">
-    <div style="font-size:12px;color:#888;margin-bottom:10px;font-weight:500">Véhicule ${i+1}</div>
-    <div class="field"><label>Nom / immatriculation</label>
-      <input value="${vehicules[i].nom}" oninput="vehicules[${i}].nom=this.value" placeholder="Ex: Peugeot 308"/></div>
-    <div class="field"><label>Type</label><select onchange="vehicules[${i}].type=this.value">
-      ${["voiture","moto","scooter"].map(t=>`<option value="${t}" ${vehicules[i].type===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
-    <div class="field"><label>Puissance fiscale</label><select onchange="vehicules[${i}].cv=+this.value">
-      ${[3,4,5,6,7].map(c=>`<option value="${c}" ${vehicules[i].cv===c?'selected':''}>${c}${c===7?' CV et +':' CV'}</option>`).join('')}</select></div>
-  </div>`).join('');
+  document.getElementById('veh-cards').innerHTML=`
+    <div class="veh-card" style="max-width:320px">
+      <div style="font-size:12px;color:#888;margin-bottom:10px;font-weight:500">Véhicule principal</div>
+      <div class="field"><label>Nom / immatriculation</label>
+        <input value="${vehicules[0].nom}" oninput="vehicules[0].nom=this.value"/></div>
+      <div class="field"><label>Type</label>
+        <select onchange="vehicules[0].type=this.value">
+          <option value="voiture" selected>Voiture</option>
+          <option value="moto">Moto</option>
+          <option value="scooter">Scooter</option>
+        </select></div>
+      <div class="field"><label>Puissance fiscale</label>
+        <select onchange="vehicules[0].cv=+this.value">
+          ${[3,4,5,6,7].map(c=>`<option value="${c}" ${vehicules[0].cv===c?'selected':''}>${c}${c===7?' CV et +':' CV'}</option>`).join('')}
+        </select></div>
+    </div>`;
 }
 
-function renderVehSel(){document.getElementById('veh-sel').innerHTML=vehicules.map((v,i)=>v.nom?`<option value="${i}">${v.nom} (${v.cv} CV)</option>`:'').join('')||'<option value="0">Véhicule 1 (5 CV)</option>';}
-function calcIK(km,cv){const t=BAREME[Math.min(cv,7)]||BAREME[5];for(const s of t)if(km<=s.max)return km*s.a+s.b;return 0;}
-function getCV(){return vehicules[+document.getElementById('veh-sel').value||0]?.cv||5;}
-function getLieuKm(nom){const l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom?.toLowerCase());return l?l.kmAR:0;}
-
-function renderIK(){
-  const cv=getCV();
-  const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu),entite:e.entite||getEntite(e.calendrier||'',e.organisateur||'')}));
-  const totalKm=ev.reduce((s,e)=>s+e.kmAR,0);
-  document.getElementById('m-count').textContent=ev.length;
-  document.getElementById('m-km').textContent=totalKm.toLocaleString('fr-FR')+' km';
-  document.getElementById('m-ik').textContent=calcIK(totalKm,cv).toFixed(2).replace('.',',')+' €';
-
-  const ENTITES=['PJGEI','PJGEIPF26','CSL42'];
-  const COLORS={'PJGEI':'#e8f0fe','PJGEIPF26':'#fce8f3','CSL42':'#e8f5e9'};
-  const TCOLORS={'PJGEI':'#1a56db','PJGEIPF26':'#9b1b6e','CSL42':'#2e7d32'};
-  let html='';
-  ENTITES.forEach(entite=>{
-    const evs=ev.filter(e=>e.entite===entite);
-    if(!evs.length) return;
-    const kmTotal=evs.reduce((s,e)=>s+e.kmAR,0);
-    const ikTotal=calcIK(kmTotal,cv);
-    html+=`<div style="margin-bottom:2rem;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
-      <div style="background:${COLORS[entite]};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:15px;font-weight:500;color:${TCOLORS[entite]}">${entite}</span>
-        <div style="display:flex;gap:16px;align-items:center">
-          <span style="font-size:13px;color:${TCOLORS[entite]}">${evs.length} intervention${evs.length>1?'s':''} &middot; ${kmTotal} km &middot; <strong>${ikTotal.toFixed(2).replace('.',',')} €</strong></span>
-          <button onclick="exportExcelEntite('${entite}')" style="font-size:11px;padding:4px 10px;border:1px solid ${TCOLORS[entite]};border-radius:6px;background:white;color:${TCOLORS[entite]};cursor:pointer">Exporter Excel</button>
-        </div>
-      </div>
-      <div class="tbl-wrap"><table style="table-layout:fixed">
-        <thead><tr style="background:#fafafa">
-          <th style="width:10%">Date</th><th style="width:20%">Titre</th>
-          <th style="width:18%">Motif</th><th style="width:15%">Lieu</th><th style="width:18%">Adresse</th>
-          <th style="width:9%">Km AR</th><th style="width:10%">IK (€)</th>
-        </tr></thead>
-        <tbody>${evs.map(ev=>{const ik=calcIK(ev.kmAR,cv);
-          const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===ev.lieu?.toLowerCase());
-          return`<tr>
-          <td style="font-size:12px">${ev.date||'—'}</td>
-          <td style="font-size:12px">${ev.titre||'—'}</td>
-          <td style="font-size:11px;color:#555">${ev.motif||'—'}</td>
-          <td style="font-size:12px">${ev.lieu||'—'}</td>
-          <td style="font-size:11px;color:#666">${lieuObj?lieuObj.adresse:''}</td>
-          <td style="font-size:13px;font-weight:500">${ev.kmAR}</td>
-          <td style="font-size:13px;font-weight:500">${ik.toFixed(2).replace('.',',')}</td>
-        </tr>`;}).join('')}</tbody>
-      </table></div>
-    </div>`;
-  });
-  document.getElementById('ik-container').innerHTML=html||'<div class="empty">Aucune intervention.</div>';
+function renderVehSel(){
+  document.getElementById('veh-sel').innerHTML=`<option value="0">${vehicules[0].nom} (${vehicules[0].cv} CV)</option>`;
 }
 
 function exportExcelEntite(entite){
