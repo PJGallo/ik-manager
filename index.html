@@ -278,21 +278,23 @@ const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
 
 // Référentiel des adresses connues
 const ADRESSES_CONNUES={
-  "ELS ANDREZIEUX":     {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", lat:45.5219, lon:4.2697},
-  "BUREAUX ANDREZIEUX": {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", lat:45.5219, lon:4.2697},
-  "Plusécur":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", lat:45.2927, lon:4.1731},
-  "PLUSECUR":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", lat:45.2927, lon:4.1731},
-  "GROUPE DENIS":       {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
-  "PROTECH":            {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
-  "SOMAIN":             {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
-  "Réfectoire DSO, DSM, SERTAC, DENIS": {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", lat:45.3965, lon:4.3189},
-  "CHAMBON":            {adresse:"Allée André Marie Ampère, 42500 Le Chambon-Feugerolles", lat:45.3975, lon:4.3201},
-  "MPE Europe":         {adresse:"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire", lat:45.2918, lon:4.1756},
-  "MPE":                {adresse:"3a Bd François Mitterrand, 43120 Monistrol-sur-Loire", lat:45.2918, lon:4.1756},
-  "SICAF":              {adresse:"5 Rue Julien Chomienne, 42400 Saint-Chamond", lat:45.4766, lon:4.5152},
-  "MA BOST":            {adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697},
-  "INTERVENTION MA BOST":{adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697},
-  "Saint-Etienne 1997 Rue Jean Rostand":{adresse:"1997 Rue Jean Rostand, 42100 Saint-Etienne", lat:45.4097, lon:4.3697}
+  "ELS ANDREZIEUX":     "ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
+  "BUREAUX ANDREZIEUX": "ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
+  "Plusécur":           "ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
+  "PLUSECUR":           "ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
+  "GROUPE DENIS":       "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "PROTECH":            "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "SOMAIN":             "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "Réfectoire DSO, DSM, SERTAC, DENIS": "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
+  "CHAMBON":            "Allée André Marie Ampère, 42500 Le Chambon-Feugerolles",
+  "MPE Europe":         "3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire",
+  "MPE":                "3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire",
+  "SICAF":              "5 Rue Julien Chomienne, 42400 Saint-Chamond",
+  "MA BOST":            "1997 Rue Jean Rostand, 42350 La Talaudière",
+  "INTERVENTION MA BOST": "1997 Rue Jean Rostand, 42350 La Talaudière",
+  "Saint-Etienne 1997": "1997 Rue Jean Rostand, 42350 La Talaudière",
+  "Jean Rostand":       "1997 Rue Jean Rostand, 42350 La Talaudière",
+  "Talaudière":         "1997 Rue Jean Rostand, 42350 La Talaudière"
 };
 
 // Correspondance calendrier → entité IK
@@ -325,12 +327,19 @@ function getEntite(calendrier, organisateur){
 function getAdresse(lieu){
   if(!lieu) return '';
   const l=lieu.trim();
+  // Correspondance exacte d'abord
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase()===k.toLowerCase()) return v.adresse;
+    if(l.toLowerCase()===k.toLowerCase()) return v;
   }
+  // Correspondance partielle
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v.adresse;
+    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v;
   }
+  // Si c'est une adresse brute avec CP, la nettoyer et la retourner
+  const cpMatch=l.match(/(\d+\s+(?:rue|avenue|boulevard|allée|impasse|chemin|bd|av)[^,
+]*,?\s*\d{5}[^,
+]*)/i);
+  if(cpMatch) return cpMatch[1].trim();
   if(/\d{5}/.test(l)) return l;
   return '';
 }
@@ -531,34 +540,31 @@ function validateAll(){lieux.forEach(l=>{if(l.nom.trim())l.validated=true;});ren
 function addLieu(){lieux.push({nom:"",adresse:"",entreprise:"",kmAR:0,distStatus:"",validated:false,autoFilled:false});renderLieux();}
 
 async function geocode(addr){
-  // Chercher dans le référentiel avec coordonnées GPS
-  const addrLow=addr.toLowerCase().trim();
+  // Nettoyer l'adresse : chercher d'abord dans le référentiel
+  let clean=addr.trim();
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(addrLow.includes(k.toLowerCase())||k.toLowerCase().includes(addrLow)||
-       (v.adresse&&addrLow.includes(v.adresse.toLowerCase().substring(0,15)))){
-      return {lat:v.lat, lon:v.lon};
-    }
+    if(clean.toLowerCase().includes(k.toLowerCase())){clean=v;break;}
   }
-  // API Adresse gouv.fr
+  // 1. API Adresse gouvernement français
   try{
-    const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(addr)+'&limit=1');
+    const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(clean)+'&limit=1');
     const d=await r.json();
     if(d.features&&d.features.length){
       const[lon,lat]=d.features[0].geometry.coordinates;
       return {lat,lon};
     }
   }catch(e){}
-  // Nominatim fallback
+  // 2. Nominatim
   try{
-    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(addr)+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr'}});
+    const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&q='+encodeURIComponent(clean)+'&countrycodes=fr&limit=1',{headers:{'Accept-Language':'fr','User-Agent':'IK-Manager/1.0'}});
     const d=await r.json();
     if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
   }catch(e){}
-  // CP seul
-  const cp=addr.match(/\d{5}/);
+  // 3. CP seul
+  const cp=clean.match(/\d{5}/);
   if(cp){
     try{
-      const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+cp[0]+'&limit=1');
+      const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(cp[0])+'&limit=1');
       const d=await r.json();
       if(d.features&&d.features.length){
         const[lon,lat]=d.features[0].geometry.coordinates;
@@ -566,7 +572,7 @@ async function geocode(addr){
       }
     }catch(e){}
   }
-  throw new Error('Introuvable: '+addr);
+  throw new Error('Introuvable: '+clean);
 }
 async function calcDistance(i){
   if(!lieux[i].adresse.trim()) return;
