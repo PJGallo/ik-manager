@@ -277,23 +277,25 @@ const DOMICILE="65 impasse de la nature, Jonzieux, 42660, France";
 
 // Référentiel des adresses connues
 const ADRESSES_CONNUES={
-  "ELS ANDREZIEUX":     "ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "BUREAUX ANDREZIEUX": "ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon",
-  "Plusécur":           "ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
-  "PLUSECUR":           "ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire",
-  "GROUPE DENIS":       "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "PROTECH":            "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "SOMAIN":             "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "Réfectoire DSO, DSM, SERTAC, DENIS": "7 Rue de Monterrad, 42500 Le Chambon-Feugerolles",
-  "CHAMBON":            "Allée André Marie Ampère, 42500 Le Chambon-Feugerolles",
-  "MPE Europe":         "3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire",
-  "MPE":                "3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire",
-  "SICAF":              "5 Rue Julien Chomienne, 42400 Saint-Chamond",
-  "MA BOST":            "1997 Rue Jean Rostand, 42350 La Talaudière",
-  "INTERVENTION MA BOST": "1997 Rue Jean Rostand, 42350 La Talaudière",
-  "Saint-Etienne 1997": "1997 Rue Jean Rostand, 42350 La Talaudière",
-  "Jean Rostand":       "1997 Rue Jean Rostand, 42350 La Talaudière",
-  "Talaudière":         "1997 Rue Jean Rostand, 42350 La Talaudière"
+  "ELS ANDREZIEUX":     {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", kmAR:75},
+  "BUREAUX ANDREZIEUX": {adresse:"ZAC L'Orme-les-Sources, 150 Rue Colonel Louis Lemaire, 42160 Andrézieux-Bouthéon", kmAR:75},
+  "Plusécur":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", kmAR:43},
+  "PLUSECUR":           {adresse:"ZA, La Croix Saint-Martin, 43120 Monistrol-sur-Loire", kmAR:43},
+  "GROUPE DENIS":       {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", kmAR:22},
+  "PROTECH":            {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", kmAR:22},
+  "SOMAIN":             {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", kmAR:22},
+  "Réfectoire DSO, DSM, SERTAC, DENIS": {adresse:"7 Rue de Monterrad, 42500 Le Chambon-Feugerolles", kmAR:22},
+  "CHAMBON":            {adresse:"Allée André Marie Ampère, 42500 Le Chambon-Feugerolles", kmAR:22},
+  "MPE Europe":         {adresse:"3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire", kmAR:40},
+  "MPE":                {adresse:"3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire", kmAR:40},
+  "SICAF":              {adresse:"5 Rue Julien Chomienne, 42400 Saint-Chamond", kmAR:62},
+  "MA BOST":            {adresse:"1997 Rue Jean Rostand, 42350 La Talaudière", kmAR:56},
+  "INTERVENTION MA BOST": {adresse:"1997 Rue Jean Rostand, 42350 La Talaudière", kmAR:56},
+  "Saint-Etienne 1997": {adresse:"1997 Rue Jean Rostand, 42350 La Talaudière", kmAR:56},
+  "Jean Rostand":       {adresse:"1997 Rue Jean Rostand, 42350 La Talaudière", kmAR:56},
+  "Talaudière":         {adresse:"1997 Rue Jean Rostand, 42350 La Talaudière", kmAR:56},
+  "3a Bd François Mitterrand": {adresse:"3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire", kmAR:40},
+  "François Mitterrand": {adresse:"3 Boulevard François Mitterrand, 43120 Monistrol-sur-Loire", kmAR:40}
 };
 
 // Correspondance calendrier → entité IK
@@ -326,13 +328,11 @@ function getEntite(calendrier, organisateur){
 function getAdresse(lieu){
   if(!lieu) return '';
   const l=lieu.trim();
-  // Correspondance exacte d'abord
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase()===k.toLowerCase()) return v;
+    if(l.toLowerCase()===k.toLowerCase()) return v.adresse;
   }
-  // Correspondance partielle
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
-    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v;
+    if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v.adresse;
   }
   if(/[0-9]{5}/.test(l)) return l;
   return '';
@@ -484,19 +484,26 @@ function buildLieuxFromAgenda(){
   const existants=new Set(lieux.map(l=>l.nom.toLowerCase()));
   const lieuxBruts=[...new Set(ev.map(e=>e.lieu).filter(Boolean))];
   lieuxBruts.forEach(lieuBrut=>{
-    // Chercher d'abord dans le référentiel
     let nom=lieuBrut;
-    let adresseAuto=getAdresse(lieuBrut);
-    // Si l'adresse brute contient un code postal (c'est une vraie adresse)
-    // extraire juste le premier segment comme nom
-    if(/[0-9]{5}/.test(lieuBrut) && !adresseAuto){
+    let adresseAuto='';
+    let kmAuto=0;
+    // Chercher dans le référentiel
+    for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
+      if(nom.toLowerCase()===k.toLowerCase()||nom.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(nom.toLowerCase())){
+        adresseAuto=v.adresse;
+        kmAuto=v.kmAR||0;
+        break;
+      }
+    }
+    // Si adresse brute avec CP
+    if(!adresseAuto && /[0-9]{5}/.test(lieuBrut)){
       adresseAuto=lieuBrut;
       nom=lieuBrut.split(',')[0].trim().substring(0,30);
     }
     if(!existants.has(nom.toLowerCase())){
       const match=ev.find(e=>e.lieu===lieuBrut&&e.organisateur);
       const entiteAuto=match?getEntite(match.calendrier||'',match.organisateur||''):'';
-      lieux.push({nom,adresse:adresseAuto,entreprise:entiteAuto,kmAR:0,distStatus:"",validated:false,autoFilled:true});
+      lieux.push({nom,adresse:adresseAuto,entreprise:entiteAuto,kmAR:kmAuto,distStatus:"",validated:false,autoFilled:true});
       existants.add(nom.toLowerCase());
     }
   });
@@ -640,6 +647,70 @@ function renderVehicules(){
 
 function renderVehSel(){
   document.getElementById('veh-sel').innerHTML=`<option value="0">${vehicules[0].nom} (${vehicules[0].cv} CV)</option>`;
+}
+
+
+function calcIK(km,cv){
+  const t=BAREME[Math.min(cv,7)]||BAREME[5];
+  for(const s of t)if(km<=s.max)return km*s.a+s.b;
+  return 0;
+}
+function getCV(){return vehicules[+document.getElementById('veh-sel').value||0]?.cv||7;}
+function getLieuKm(nom){
+  const l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom?.toLowerCase());
+  return l?l.kmAR:0;
+}
+function renderIK(){
+  const cv=getCV();
+  const ev=allEvents().map(e=>({...e,kmAR:getLieuKm(e.lieu),entite:e.entite||getEntite(e.calendrier||'',e.organisateur||'')}));
+  const totalKm=ev.reduce((s,e)=>s+e.kmAR,0);
+  document.getElementById('m-count').textContent=ev.length;
+  document.getElementById('m-km').textContent=totalKm.toLocaleString('fr-FR')+' km';
+  document.getElementById('m-ik').textContent=calcIK(totalKm,cv).toFixed(2).replace('.',',')+' €';
+  const ENTITES=['PJGEI','PJGEIPF26','CSL42'];
+  const COLORS={PJGEI:'#e8f0fe',PJGEIPF26:'#fce8f3',CSL42:'#e8f5e9'};
+  const TCOLORS={PJGEI:'#1a56db',PJGEIPF26:'#9b1b6e',CSL42:'#2e7d32'};
+  let html='';
+  ENTITES.forEach(entite=>{
+    const evs=ev.filter(e=>e.entite===entite);
+    if(!evs.length) return;
+    const kmTotal=evs.reduce((s,e)=>s+e.kmAR,0);
+    const ikTotal=calcIK(kmTotal,cv);
+    html+=`<div style="margin-bottom:2rem;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden">
+      <div style="background:${COLORS[entite]};padding:12px 16px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:500;color:${TCOLORS[entite]}">${entite}</span>
+        <div style="display:flex;gap:16px;align-items:center">
+          <span style="font-size:13px;color:${TCOLORS[entite]}">${evs.length} intervention${evs.length>1?'s':''} &middot; ${kmTotal} km &middot; <strong>${ikTotal.toFixed(2).replace('.',',')} €</strong></span>
+          <button onclick="exportExcelEntite('${entite}')" style="font-size:11px;padding:4px 10px;border:1px solid ${TCOLORS[entite]};border-radius:6px;background:white;color:${TCOLORS[entite]};cursor:pointer">Exporter Excel</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <thead><tr style="background:#fafafa">
+          <th style="width:10%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Date</th>
+          <th style="width:20%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Titre</th>
+          <th style="width:18%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Motif</th>
+          <th style="width:15%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Lieu</th>
+          <th style="width:22%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Adresse</th>
+          <th style="width:8%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">Km AR</th>
+          <th style="width:7%;text-align:left;padding:7px 8px;font-size:11px;color:#888;border-bottom:1px solid #eee">IK (€)</th>
+        </tr></thead>
+        <tbody>${evs.map(ev=>{
+          const ik=calcIK(ev.kmAR,cv);
+          const lieuObj=lieux.find(l=>l.nom&&l.nom.toLowerCase()===ev.lieu?.toLowerCase());
+          return '<tr>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:12px">'+( ev.date||'—')+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:12px">'+(ev.titre||'—')+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;color:#555">'+(ev.motif||'—')+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:12px">'+(ev.lieu||'—')+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:11px;color:#666">'+(lieuObj?lieuObj.adresse:'')+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:13px;font-weight:500">'+ev.kmAR+'</td>'
+            +'<td style="padding:5px 8px;border-bottom:1px solid #eee;font-size:13px;font-weight:500">'+ik.toFixed(2).replace('.',',')+'</td>'
+            +'</tr>';
+        }).join('')}</tbody>
+      </table></div>
+    </div>`;
+  });
+  document.getElementById('ik-container').innerHTML=html||'<div class="empty">Aucune intervention.</div>';
 }
 
 function exportExcelEntite(entite){
