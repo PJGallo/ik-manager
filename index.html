@@ -334,12 +334,7 @@ function getAdresse(lieu){
   for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
     if(l.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(l.toLowerCase())) return v;
   }
-  // Si c'est une adresse brute avec CP, la nettoyer et la retourner
-  const cpMatch=l.match(/(\d+\s+(?:rue|avenue|boulevard|allée|impasse|chemin|bd|av)[^,
-]*,?\s*\d{5}[^,
-]*)/i);
-  if(cpMatch) return cpMatch[1].trim();
-  if(/\d{5}/.test(l)) return l;
+  if(/[0-9]{5}/.test(l)) return l;
   return '';
 }
 const BAREME={
@@ -593,7 +588,7 @@ async function geocode(addr){
     if(d.length) return {lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
   }catch(e){}
   // 3. CP seul
-  const cp=clean.match(/\d{5}/);
+  const cp=clean.match(/[0-9]{5}/);
   if(cp){
     try{
       const r=await fetch('https://api-adresse.data.gouv.fr/search/?q='+encodeURIComponent(cp[0])+'&limit=1');
