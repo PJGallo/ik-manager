@@ -356,9 +356,9 @@ function loadSavedLieux(){
 }
 function saveLieux(){
   try{
-    // Sauvegarder uniquement les lieux validés avec leurs km
     const toSave=lieux.filter(l=>l.nom&&l.kmAR>0).map(l=>({nom:l.nom,adresse:l.adresse,entreprise:l.entreprise,kmAR:l.kmAR}));
     localStorage.setItem('ik_lieux_referentiel',JSON.stringify(toSave));
+    sessionStorage.setItem('ik_lieux',JSON.stringify(lieux));
   }catch(e){}
 }
 function getSavedKm(nom,adresse){
@@ -368,7 +368,16 @@ function getSavedKm(nom,adresse){
 }
 let lieux=[];
 let vehicules=[{nom:"Volkswagen Sharan",type:"voiture",cv:7}];
-function allEvents(){return[...eventsFromAgenda,...eventsManual];}
+function allEvents(){
+  // Si pas d'événements en mémoire, essayer sessionStorage
+  if(eventsFromAgenda.length===0){
+    try{
+      const saved=sessionStorage.getItem('ik_events');
+      if(saved) eventsFromAgenda=JSON.parse(saved);
+    }catch(e){}
+  }
+  return [...eventsFromAgenda,...eventsManual];
+}
 
 function signIn(){
   const p=new URLSearchParams({
@@ -462,6 +471,8 @@ async function loadAgenda(){
         motif:(ev.description||'').split('\n')[0].replace(/<[^>]+>/g,'').trim().substring(0,80)
       })).sort((a,b)=>a.date.localeCompare(b.date));
     status.innerHTML='<div class="status-pill success">&#10003; '+eventsFromAgenda.length+' événements chargés depuis '+calendars.length+' calendriers</div>';
+    // Sauvegarder en sessionStorage pour persistance entre étapes
+    try{sessionStorage.setItem('ik_events',JSON.stringify(eventsFromAgenda));}catch(e){}
     renderAgendaPreview();
   }catch(e){status.innerHTML=`<div class="status-pill error">Erreur : ${e.message}</div>`;}
 }
@@ -690,8 +701,26 @@ function calcIK(km,cv){
 }
 function getCV(){return vehicules[+document.getElementById('veh-sel').value||0]?.cv||7;}
 function getLieuKm(nom){
-  const l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom?.toLowerCase());
-  return l?l.kmAR:0;
+  if(!nom) return 0;
+  // D'abord chercher dans lieux en mémoire
+  let l=lieux.find(l=>l.nom&&l.nom.toLowerCase()===nom.toLowerCase());
+  if(l) return l.kmAR;
+  // Sinon sessionStorage
+  try{
+    const saved=sessionStorage.getItem('ik_lieux');
+    if(saved){
+      const savedLieux=JSON.parse(saved);
+      l=savedLieux.find(l=>l.nom&&l.nom.toLowerCase()===nom.toLowerCase());
+      if(l) return l.kmAR;
+    }
+  }catch(e){}
+  // Sinon référentiel intégré
+  for(const [k,v] of Object.entries(ADRESSES_CONNUES)){
+    if(nom.toLowerCase()===k.toLowerCase()||nom.toLowerCase().includes(k.toLowerCase())||k.toLowerCase().includes(nom.toLowerCase())){
+      return v.kmAR||0;
+    }
+  }
+  return 0;
 }
 function renderIK(){
   const cv=getCV();
@@ -795,7 +824,19 @@ function goStep(n){
   [1,2,3,4].forEach(i=>{document.getElementById('sc'+i).classList.toggle('active',i===n);document.getElementById('stp'+i).classList.remove('active','done');});
   document.getElementById('stp'+n).classList.add('active');
   for(let i=1;i<n;i++)document.getElementById('stp'+i).classList.add('done');
-  if(n===3)renderVehicules();if(n===4){renderVehSel();renderIK();}
+  if(n===3) renderVehicules();
+  if(n===4){
+    renderVehSel();
+    // Vérifier qu'on a des événements
+    if(allEvents().length===0){
+      document.getElementById("m-count").textContent="0";
+      document.getElementById("m-km").textContent="0 km";
+      document.getElementById("m-ik").textContent="0,00 €";
+      document.getElementById("ik-container").innerHTML="<div class=\"empty\" style=\"color:#c62828\">Aucune intervention. Retournez à l’étape 1.</div>";
+    } else {
+      renderIK();
+    }
+  }
 }
 function setDefaultPeriod(){
   const now=new Date(),y=now.getFullYear(),m=now.getMonth();
